@@ -48,6 +48,19 @@ public class AssetManager {
         }
     }
 
+    public static void createNewScene(Path targetDirectory, String sceneName){
+        String fileName = capitalizeFirstLetter(sceneName) + ".lyvexscene";
+        Path scenePath = targetDirectory.resolve(fileName);
+
+        try {
+            if (!Files.exists(scenePath)) {
+                Files.createFile(scenePath);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private static String buildPackageFromScriptsPath(Path targetDirectory) {
         Path scriptsRoot = ProjectManager.getScriptsPath();
         Path relative = scriptsRoot.relativize(targetDirectory);
@@ -90,6 +103,20 @@ public class AssetManager {
         }
 
         return scriptsPath;
+    }
+
+    public static Path getScenePath(){
+        Path scenePath = getAssetPath().resolve("Scenes");
+
+        try{
+            if(!Files.exists(scenePath)){
+                Files.createDirectories(scenePath);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return scenePath;
     }
 
     private static String capitalizeFirstLetter(String text) {

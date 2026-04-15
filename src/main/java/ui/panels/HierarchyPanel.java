@@ -11,9 +11,9 @@ import ui.EditorPanel;
 
 public class HierarchyPanel implements EditorPanel {
     private final int POS_X = 0;
-    private final int POS_Y = 0;
+    private final int POS_Y = 19;
     private final int WIDTH = 350;
-    private final int HEIGHT = 600;
+    private final int HEIGHT = 637;
 
     @Override
     public void init() {

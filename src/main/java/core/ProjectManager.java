@@ -60,4 +60,17 @@ public class ProjectManager {
     public static Path getScriptsPath() {
         return getAssetsPath().resolve("Scripts");
     }
+
+    public static Path getScenesPath() {
+        return getAssetsPath().resolve("Scenes");
+    }
+
+    public static Path getProjectSettingsPath() {
+        return getProjectRoot().resolve("ProjectSettings");
+    }
+
+    public static Path getProjectFilePath() {
+        String projectName = getProjectRoot().getFileName().toString();
+        return getProjectRoot().resolve(projectName + ".lyvex");
+    }
 }

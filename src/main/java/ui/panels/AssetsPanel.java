@@ -16,15 +16,18 @@ import java.util.stream.Stream;
 
 public class AssetsPanel implements EditorPanel {
     private final int POS_X = 999;
-    private final int POS_Y = 601;
+    private final int POS_Y = 656;
     private final int WIDTH = 920;
-    private final int HEIGHT = 410;
+    private final int HEIGHT = 353;
 
     private boolean showCreateFolderInput = false;
     private final ImString folderName = new ImString(256);
 
     private boolean showCreateComponentInput = false;
     private final ImString componentName = new ImString(256);
+
+    private boolean showCreateSceneInput = false;
+    private final ImString sceneName = new ImString(256);
 
     private Path currentDirectory = AssetManager.getAssetPath();
 
@@ -49,7 +52,7 @@ public class AssetsPanel implements EditorPanel {
         ImGui.sameLine();
         ImGui.text("Current directory: " + currentDirectory);
 
-        drawDirectoryContent();
+        drawDirectoryContent(context);
 
         init();
 
@@ -63,6 +66,10 @@ public class AssetsPanel implements EditorPanel {
 
         if (showCreateComponentInput) {
             createComponent();
+        }
+
+        if (showCreateSceneInput) {
+            createScene();
         }
 
         optionsMenu();
@@ -81,6 +88,11 @@ public class AssetsPanel implements EditorPanel {
             if (ImGui.menuItem("Create new component")) {
                 showCreateComponentInput = true;
                 componentName.set("");
+            }
+
+            if (ImGui.menuItem("Create new scene")) {
+                showCreateSceneInput = true;
+                sceneName.set("");
             }
 
             ImGui.endPopup();
@@ -128,7 +140,27 @@ public class AssetsPanel implements EditorPanel {
         ImGui.end();
     }
 
-    private void drawDirectoryContent() {
+    private void createScene(){
+        ImGui.begin("Create New Scene", ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse);
+        ImGui.setWindowPos((float) (1920 / 2) - 160, (float) (1080 / 2) - 50);
+        ImGui.setWindowSize(330, 80);
+        ImGui.inputText("Scene name", sceneName);
+
+        if (ImGui.button("Create")) {
+            AssetManager.createNewScene(currentDirectory, sceneName.get());
+            showCreateSceneInput = false;
+        }
+
+        ImGui.sameLine();
+
+        if (ImGui.button("Cancel")) {
+            showCreateSceneInput = false;
+        }
+
+        ImGui.end();
+    }
+
+    private void drawDirectoryContent(EditorContext context) {
         try (Stream<Path> paths = Files.list(currentDirectory)) {
             paths.forEach(path -> {
                 String name = path.getFileName().toString();
@@ -136,6 +168,10 @@ public class AssetsPanel implements EditorPanel {
                 if (Files.isDirectory(path)) {
                     if (ImGui.selectable("[DIR] " + name)) {
                         currentDirectory = path;
+                    }
+                } else if (name.endsWith(".lyvexscene")) {
+                    if (ImGui.selectable("[SCENE] " + name)) {
+                        context.getEngine().openScene(path);
                     }
                 } else {
                     if (ImGui.selectable("[FILE] " + name)) {

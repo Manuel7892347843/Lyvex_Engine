@@ -9,7 +9,7 @@ import ui.EditorPanel;
 
 public class ScenePanel implements EditorPanel {
     private final int POS_X = 350;
-    private final int POS_Y = 0;
+    private final int POS_Y = 57;
     private final int WIDTH = 1220;
     private final int HEIGHT = 600;
 
