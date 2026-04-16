@@ -86,6 +86,7 @@ public class GameObject {
         }
 
         if (components.remove(component)) {
+            component.onDestroy();
             component.setGameObject(null);
         }
     }

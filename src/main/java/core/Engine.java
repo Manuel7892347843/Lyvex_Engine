@@ -114,14 +114,14 @@ public class Engine {
             }
 
             if (isInPlayMode && !isInitialized) {
-                start();
+                awakeScene();
+                startScene();
                 isInitialized = true;
             }
 
             if (isInPlayMode) {
-                for (GameObject rootObject : currentScene.getRootObjects()) {
-                    rootObject.getComponents().forEach(Component::update);
-                }
+                updateScene();
+                lateUpdateScene();
             }
 
             sceneFrameBuffer.bind();
@@ -138,6 +138,48 @@ public class Engine {
     private void start(){
         for (GameObject rootObject : currentScene.getRootObjects()) {
             rootObject.getComponents().forEach(Component::start);
+        }
+    }
+
+    private void awakeScene() {
+        for (GameObject rootObject : currentScene.getRootObjects()) {
+            rootObject.getComponents().forEach(component -> {
+                if (!component.isAwoken()) {
+                    component.awake();
+                    component.setAwoken(true);
+                }
+            });
+        }
+    }
+
+    private void startScene() {
+        for (GameObject rootObject : currentScene.getRootObjects()) {
+            rootObject.getComponents().forEach(component -> {
+                if (component.isEnabled() && !component.isStarted()) {
+                    component.start();
+                    component.setStarted(true);
+                }
+            });
+        }
+    }
+
+    private void updateScene() {
+        for (GameObject rootObject : currentScene.getRootObjects()) {
+            rootObject.getComponents().forEach(component -> {
+                if (component.isEnabled()) {
+                    component.update();
+                }
+            });
+        }
+    }
+
+    private void lateUpdateScene() {
+        for (GameObject rootObject : currentScene.getRootObjects()) {
+            rootObject.getComponents().forEach(component -> {
+                if (component.isEnabled()) {
+                    component.lateUpdate();
+                }
+            });
         }
     }
 

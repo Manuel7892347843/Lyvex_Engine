@@ -1,8 +1,12 @@
 package ui.panels;
 
-import core.ScriptComponentRegistry;
+import core.AssetManager;
 import core.GameObject;
+import core.ScriptComponentRegistry;
+import core.SpriteLoader;
 import core.component.Component;
+import core.component.Sprite;
+import core.component.SpriteComponent;
 import core.component.Transform;
 import imgui.ImGui;
 import imgui.flag.ImGuiCond;
@@ -12,15 +16,21 @@ import imgui.type.ImString;
 import ui.EditorContext;
 import ui.EditorPanel;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 public class InspectorPanel implements EditorPanel {
     private final int POS_X = 1570;
     private final int POS_Y = 19;
     private final int WIDTH = 350;
     private final int HEIGHT = 637;
+
+    private SpriteComponent spritePickerTarget;
 
     @Override
     public void init() {
@@ -88,6 +98,10 @@ public class InspectorPanel implements EditorPanel {
 
             drawComponentFields(component, context);
 
+            if (component instanceof SpriteComponent spriteComponent) {
+                drawSpriteField(spriteComponent, context);
+            }
+
             if (component instanceof Transform) {
                 ImGui.text("Transform is required and cannot be removed.");
             } else {
@@ -101,6 +115,8 @@ public class InspectorPanel implements EditorPanel {
             selected.removeComponent(component);
             context.setSceneDirty(true);
         }
+
+        drawSpritePickerPopup(context);
 
         ImGui.end();
     }
@@ -142,6 +158,72 @@ public class InspectorPanel implements EditorPanel {
             } catch (Exception ignored) {
             }
         }
+    }
+
+    private void drawSpriteField(SpriteComponent spriteComponent, EditorContext context) {
+        ImGui.separator();
+        ImGui.text("Sprite");
+
+        String spritePath = spriteComponent.getSpriteAssetPath();
+        if (spritePath == null || spritePath.isBlank()) {
+            ImGui.text("Selected: None");
+        } else {
+            ImGui.text("Selected: " + spritePath);
+        }
+
+        if (ImGui.button("Choose Sprite")) {
+            spritePickerTarget = spriteComponent;
+            ImGui.openPopup("SpritePickerPopup");
+        }
+    }
+
+    private void drawSpritePickerPopup(EditorContext context) {
+        if (ImGui.beginPopup("SpritePickerPopup")) {
+            Path assetsRoot = AssetManager.getAssetPath();
+
+            ImGui.text("Select a sprite from Assets");
+            ImGui.separator();
+
+            try (Stream<Path> paths = Files.walk(assetsRoot)) {
+                paths.filter(Files::isRegularFile)
+                        .filter(this::isImageFile)
+                        .forEach(path -> {
+                            String relative = assetsRoot.relativize(path).toString().replace('\\', '/');
+                            if (ImGui.selectable(relative)) {
+                                if (spritePickerTarget != null) {
+                                    spritePickerTarget.setSpriteAssetPath(relative);
+
+                                    try {
+                                        Path realPath = assetsRoot.resolve(relative);
+                                        Sprite sprite = SpriteLoader.loadFromFile(realPath);
+                                        spritePickerTarget.setSprite(sprite);
+                                    } catch (Exception e) {
+                                        throw new RuntimeException("Failed to load sprite: " + relative, e);
+                                    }
+                                }
+                                context.setSceneDirty(true);
+                                ImGui.closeCurrentPopup();
+                            }
+                        });
+            } catch (IOException e) {
+                ImGui.text("Failed to read assets folder");
+            }
+
+            if (ImGui.button("Close")) {
+                ImGui.closeCurrentPopup();
+            }
+
+            ImGui.endPopup();
+        }
+    }
+
+    private boolean isImageFile(Path path) {
+        String name = path.getFileName().toString().toLowerCase();
+        return name.endsWith(".png")
+                || name.endsWith(".jpg")
+                || name.endsWith(".jpeg")
+                || name.endsWith(".bmp")
+                || name.endsWith(".gif");
     }
 
     @Override

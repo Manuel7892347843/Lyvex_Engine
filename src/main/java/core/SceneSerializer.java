@@ -66,13 +66,18 @@ public class SceneSerializer {
     private static ComponentData toComponentData(Component component) {
         ComponentData data = new ComponentData();
 
-        // Salva il nome completo, ma sarà risolto con il registry in load
         data.type = component.getClass().getName();
 
-        Field[] fields = component.getClass().getFields();
+        Field[] fields = component.getClass().getDeclaredFields();
         for (Field field : fields) {
             try {
+                field.setAccessible(true);
                 Object value = field.get(component);
+
+                if ("sprite".equals(field.getName())) {
+                    continue;
+                }
+
                 data.fields.put(field.getName(), value);
             } catch (IllegalAccessException ignored) {
             }
@@ -147,7 +152,8 @@ public class SceneSerializer {
     private static void applyFields(Component component, Map<String, Object> fields) {
         for (Map.Entry<String, Object> entry : fields.entrySet()) {
             try {
-                Field field = component.getClass().getField(entry.getKey());
+                Field field = component.getClass().getDeclaredField(entry.getKey());
+                field.setAccessible(true);
                 Class<?> type = field.getType();
                 Object value = entry.getValue();
 

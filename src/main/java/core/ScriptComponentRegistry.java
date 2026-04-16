@@ -1,7 +1,6 @@
 package core;
 
-import core.component.Camera;
-import core.component.Component;
+import core.component.*;
 
 import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
@@ -14,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
+import core.component.SpriteComponent;
 
 public class ScriptComponentRegistry {
     private static final List<Class<? extends Component>> COMPONENT_CLASSES = new ArrayList<>();
@@ -21,6 +21,8 @@ public class ScriptComponentRegistry {
     public static void refresh() {
         COMPONENT_CLASSES.clear();
         COMPONENT_CLASSES.add(Camera.class);
+        COMPONENT_CLASSES.add(Transform.class);
+        COMPONENT_CLASSES.add(SpriteComponent.class);
 
         Path scriptsRoot = ProjectManager.getScriptsPath();
         if (scriptsRoot == null || !Files.exists(scriptsRoot)) {

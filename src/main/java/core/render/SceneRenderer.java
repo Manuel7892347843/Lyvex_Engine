@@ -4,6 +4,8 @@ import core.InputManager;
 import core.Scene;
 import core.component.EditorCamera2D;
 import core.GameObject;
+import core.component.Sprite;
+import core.component.SpriteComponent;
 import ui.EditorContext;
 
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_A;
@@ -64,6 +66,9 @@ public class SceneRenderer {
 
     public void render() {
         glEnable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
         glViewport(0, 0, viewportWidth, viewportHeight);
         glClearColor(0.15f, 0.15f, 0.18f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -95,9 +100,16 @@ public class SceneRenderer {
         float worldX = parentX + gameObject.getTransform().x;
         float worldY = parentY + gameObject.getTransform().y;
 
-        glUniform2f(objectPosLocation, worldX, worldY);
-        glUniform2f(objectScaleLocation, gameObject.getTransform().scaleX, gameObject.getTransform().scaleY);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        SpriteComponent spriteComponent = gameObject.getComponent(SpriteComponent.class);
+        if (spriteComponent != null && spriteComponent.getSprite() != null) {
+            glUniform2f(objectPosLocation, worldX, worldY);
+            glUniform2f(objectScaleLocation, gameObject.getTransform().scaleX, gameObject.getTransform().scaleY);
+
+            Sprite sprite = spriteComponent.getSprite();
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, sprite.getTextureId());
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
 
         for (GameObject child : gameObject.getChildren()) {
             renderGameObjectRecursive(child, objectPosLocation, objectScaleLocation, worldX, worldY);
@@ -116,12 +128,14 @@ public class SceneRenderer {
 
     private void createQuad() {
         float[] vertices = {
-                -0.5f, -0.5f,
-                0.5f, -0.5f,
-                0.5f,  0.5f,
-                -0.5f, -0.5f,
-                0.5f,  0.5f,
-                -0.5f,  0.5f
+                // pos      // uv
+                -0.5f, -0.5f, 0.0f, 0.0f,
+                0.5f, -0.5f, 1.0f, 0.0f,
+                0.5f,  0.5f, 1.0f, 1.0f,
+
+                -0.5f, -0.5f, 0.0f, 0.0f,
+                0.5f,  0.5f, 1.0f, 1.0f,
+                -0.5f,  0.5f, 0.0f, 1.0f
         };
 
         vao = glGenVertexArrays();
@@ -130,8 +144,13 @@ public class SceneRenderer {
         glBindVertexArray(vao);
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW);
-        glVertexAttribPointer(0, 2, GL_FLOAT, false, 2 * Float.BYTES, 0);
+
+        glVertexAttribPointer(0, 2, GL_FLOAT, false, 4 * Float.BYTES, 0);
         glEnableVertexAttribArray(0);
+
+        glVertexAttribPointer(1, 2, GL_FLOAT, false, 4 * Float.BYTES, 2L * Float.BYTES);
+        glEnableVertexAttribArray(1);
+
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
     }
@@ -140,11 +159,14 @@ public class SceneRenderer {
         String vertexShaderSource =
                 "#version 330 core\n" +
                         "layout (location = 0) in vec2 aPos;\n" +
+                        "layout (location = 1) in vec2 aUV;\n" +
+                        "out vec2 vUV;\n" +
                         "uniform vec2 uCameraPos;\n" +
                         "uniform float uZoom;\n" +
                         "uniform vec2 uObjectPos;\n" +
                         "uniform vec2 uObjectScale;\n" +
                         "void main() {\n" +
+                        "    vUV = aUV;\n" +
                         "    vec2 scaledPos = aPos * uObjectScale;\n" +
                         "    vec2 worldPos = scaledPos + uObjectPos;\n" +
                         "    vec2 viewPos = (worldPos - uCameraPos) * uZoom;\n" +
@@ -153,9 +175,11 @@ public class SceneRenderer {
 
         String fragmentShaderSource =
                 "#version 330 core\n" +
+                        "in vec2 vUV;\n" +
                         "out vec4 FragColor;\n" +
+                        "uniform sampler2D uTexture;\n" +
                         "void main() {\n" +
-                        "    FragColor = vec4(0.2, 0.8, 0.3, 1.0);\n" +
+                        "    FragColor = texture(uTexture, vUV);\n" +
                         "}";
 
         int vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -182,6 +206,11 @@ public class SceneRenderer {
         if (glGetProgrami(shaderProgram, GL_LINK_STATUS) == 0) {
             throw new IllegalStateException("Shader program link error: " + glGetProgramInfoLog(shaderProgram));
         }
+
+        glUseProgram(shaderProgram);
+        int textureLocation = glGetUniformLocation(shaderProgram, "uTexture");
+        glUniform1i(textureLocation, 0);
+        glUseProgram(0);
 
         glDeleteShader(vertexShader);
         glDeleteShader(fragmentShader);
