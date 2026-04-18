@@ -65,13 +65,13 @@ public class SceneRenderer {
     }
 
     public void render() {
-        glEnable(GL_DEPTH_TEST);
+        glDisable(GL_DEPTH_TEST);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         glViewport(0, 0, viewportWidth, viewportHeight);
         glClearColor(0.15f, 0.15f, 0.18f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT);
 
         if (scene == null) {
             return;
