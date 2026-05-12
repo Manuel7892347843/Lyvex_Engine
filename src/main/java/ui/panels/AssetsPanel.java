@@ -95,6 +95,15 @@ public class AssetsPanel implements EditorPanel {
                 sceneName.set("");
             }
 
+            if(ImGui.menuItem("Show in Explorer")){
+                try {
+                    ProcessBuilder pb = new ProcessBuilder("explorer.exe", currentDirectory.toString());
+                    pb.start();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
             ImGui.endPopup();
         }
     }
