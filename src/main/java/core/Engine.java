@@ -141,13 +141,13 @@ public class Engine {
     }
 
     private void start(){
-        for (GameObject rootObject : Scene.getRootObjects()) {
+        for (GameObject rootObject : currentScene.getRootObjects()) {
             rootObject.getComponents().forEach(Component::start);
         }
     }
 
     private void awakeScene() {
-        for (GameObject rootObject : Scene.getRootObjects()) {
+        for (GameObject rootObject : currentScene.getRootObjects()) {
             rootObject.getComponents().forEach(component -> {
                 if (!component.isAwoken()) {
                     component.awake();
@@ -158,7 +158,7 @@ public class Engine {
     }
 
     private void startScene() {
-        for (GameObject rootObject : Scene.getRootObjects()) {
+        for (GameObject rootObject : currentScene.getRootObjects()) {
             rootObject.getComponents().forEach(component -> {
                 if (component.isEnabled() && !component.isStarted()) {
                     component.start();
@@ -169,7 +169,7 @@ public class Engine {
     }
 
     private void updateScene() {
-        for (GameObject rootObject : Scene.getRootObjects()) {
+        for (GameObject rootObject : currentScene.getRootObjects()) {
             rootObject.getComponents().forEach(component -> {
                 if (component.isEnabled()) {
                     component.update();
@@ -179,7 +179,7 @@ public class Engine {
     }
 
     private void lateUpdateScene() {
-        for (GameObject rootObject : Scene.getRootObjects()) {
+        for (GameObject rootObject : currentScene.getRootObjects()) {
             rootObject.getComponents().forEach(component -> {
                 if (component.isEnabled()) {
                     component.lateUpdate();
@@ -265,7 +265,7 @@ public class Engine {
                 openScene(defaultScene);
             } else {
                 currentScene = new Scene("Main Scene");
-                currentScene.addRootObject(new GameObject("Camera Target"));
+                currentScene.addRootObject(new GameObject("Camera Target", editorUI.getContext()));
                 SceneSerializer.save(currentScene, defaultScene);
                 openScene(defaultScene);
             }

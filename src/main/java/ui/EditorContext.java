@@ -4,7 +4,8 @@ import core.Engine;
 import core.scene.Scene;
 import core.gameobject.GameObject;
 
-public class EditorContext {
+public final class EditorContext {
+    private static EditorContext instance;
     private int sceneTextureId;
 
     private float sceneViewportX;
@@ -17,6 +18,13 @@ public class EditorContext {
     private GameObject selectedGameObject;
     private boolean sceneDirty;
     private Engine engine;
+
+    private EditorContext() {}
+
+    public static EditorContext getInstance() {
+        if (instance == null) instance = new EditorContext();
+        return instance;
+    }
 
     public int getSceneTextureId() {
         return sceneTextureId;

@@ -8,7 +8,7 @@ import java.util.List;
 
 public class Scene {
     private String name;
-    private static final List<GameObject> rootObjects = new ArrayList<>();
+    private final List<GameObject> rootObjects = new ArrayList<>();
 
     public Scene() {
         this("Untitled Scene");
@@ -26,7 +26,7 @@ public class Scene {
         this.name = name;
     }
 
-    public static List<GameObject> getRootObjects() {
+    public List<GameObject> getRootObjects() {
         return Collections.unmodifiableList(rootObjects);
     }
 

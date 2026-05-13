@@ -19,16 +19,18 @@ public class GameObject {
     private final List<GameObject> children = new ArrayList<>();
     private final List<Component> components = new ArrayList<>();
     private boolean destroyed = false;
+    private EditorContext context;
 
-    public GameObject() {
-        this("GameObject");
+    public GameObject(EditorContext context) {
+        this("GameObject", context);
     }
 
-    public GameObject(String name) {
+    public GameObject(String name, EditorContext context) {
         this.id = UUID.randomUUID().toString();
         this.name = name;
         this.transform = new Transform();
         addComponent(this.transform);
+        this.context = context;
     }
 
     public String getId() {
@@ -128,7 +130,7 @@ public class GameObject {
     }
 
     public GameObject findGameObject(String name){
-        for(GameObject obj: Scene.getRootObjects()){
+        for(GameObject obj: context.getCurrentScene().getRootObjects()){
             if(obj.name.equals(name))
                 return obj;
         }

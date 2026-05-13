@@ -2,7 +2,7 @@ package ui;
 import ui.panels.*;
 
 public class EditorUI {
-    private final EditorContext context = new EditorContext();
+    private final EditorContext context = EditorContext.getInstance();
     private final HierarchyPanel hierarchyPanel = new HierarchyPanel();
     private final ModesPanel modesPanel = new ModesPanel();
     private final ScenePanel scenePanel = new ScenePanel();

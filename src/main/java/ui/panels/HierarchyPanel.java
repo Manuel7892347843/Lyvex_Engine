@@ -40,7 +40,7 @@ public class HierarchyPanel implements EditorPanel {
             if (ImGui.menuItem("Create Root Object")) {
                 Scene sceneRef = context.getCurrentScene();
                 if (sceneRef != null) {
-                    GameObject newObject = new GameObject("New GameObject");
+                    GameObject newObject = new GameObject("New GameObject", context);
                     sceneRef.addRootObject(newObject);
                     context.setSelectedGameObject(newObject);
                     context.setSceneDirty(true);

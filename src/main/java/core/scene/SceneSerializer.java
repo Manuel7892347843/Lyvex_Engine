@@ -2,6 +2,7 @@ package core.scene;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import core.ProjectManager;
 import core.scriptutil.ScriptComponentRegistry;
 import core.component.sprite.SpriteLoader;
 import core.assetmanager.AssetManager;
@@ -11,6 +12,7 @@ import core.component.sprite.Sprite;
 import core.component.sprite.SpriteComponent;
 import core.gameobject.GameObject;
 import core.gameobject.GameObjectData;
+import ui.EditorContext;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -106,7 +108,7 @@ public class SceneSerializer {
     }
 
     private static GameObject fromData(GameObjectData data) {
-        GameObject object = new GameObject(data.name != null ? data.name : "GameObject");
+        GameObject object = new GameObject(data.name != null ? data.name : "GameObject", EditorContext.getInstance());
 
         if (data.id != null && !data.id.isBlank()) {
             object.setId(data.id);
