@@ -1,11 +1,11 @@
 package core.render;
 
-import core.InputManager;
-import core.Scene;
+import core.input.InputManager;
+import core.scene.Scene;
 import core.component.EditorCamera2D;
-import core.GameObject;
-import core.component.Sprite;
-import core.component.SpriteComponent;
+import core.gameobject.GameObject;
+import core.component.sprite.Sprite;
+import core.component.sprite.SpriteComponent;
 import ui.EditorContext;
 
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_A;
@@ -97,13 +97,13 @@ public class SceneRenderer {
     }
 
     private void renderGameObjectRecursive(GameObject gameObject, int objectPosLocation, int objectScaleLocation, float parentX, float parentY) {
-        float worldX = parentX + gameObject.getTransform().x;
-        float worldY = parentY + gameObject.getTransform().y;
+        float worldX = parentX + gameObject.getTransform().getPosition().x;
+        float worldY = parentY + gameObject.getTransform().getPosition().y;
 
         SpriteComponent spriteComponent = gameObject.getComponent(SpriteComponent.class);
         if (spriteComponent != null && spriteComponent.getSprite() != null) {
             glUniform2f(objectPosLocation, worldX, worldY);
-            glUniform2f(objectScaleLocation, gameObject.getTransform().scaleX, gameObject.getTransform().scaleY);
+            glUniform2f(objectScaleLocation, gameObject.getTransform().getScale().x, gameObject.getTransform().getScale().y);
 
             Sprite sprite = spriteComponent.getSprite();
             glActiveTexture(GL_TEXTURE0);

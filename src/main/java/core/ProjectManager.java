@@ -23,6 +23,7 @@ public class ProjectManager {
             Files.createDirectories(newProjectRoot.resolve("Assets"));
             Files.createDirectories(newProjectRoot.resolve("Assets").resolve("Scripts"));
             Files.createDirectories(newProjectRoot.resolve("Assets").resolve("Scenes"));
+            Files.createDirectories(newProjectRoot.resolve("Compiled"));
             Files.createDirectories(newProjectRoot.resolve("ProjectSettings"));
 
             Path projectFile = newProjectRoot.resolve(projectName + ".lyvex");
@@ -68,6 +69,7 @@ public class ProjectManager {
     public static Path getProjectSettingsPath() {
         return getProjectRoot().resolve("ProjectSettings");
     }
+    public static Path getCompiledPath(){ return getProjectRoot().resolve("Compiled");}
 
     public static Path getProjectFilePath() {
         String projectName = getProjectRoot().getFileName().toString();

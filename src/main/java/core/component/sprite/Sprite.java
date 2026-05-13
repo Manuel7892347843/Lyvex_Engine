@@ -1,4 +1,4 @@
-package core.component;
+package core.component.sprite;
 
 public class Sprite {
     private final int textureId;

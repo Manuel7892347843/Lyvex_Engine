@@ -1,4 +1,6 @@
-package core;
+package core.scriptutil;
+
+import core.ProjectManager;
 
 import java.io.IOException;
 import java.nio.file.*;

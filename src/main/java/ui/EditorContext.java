@@ -1,8 +1,8 @@
 package ui;
 
 import core.Engine;
-import core.Scene;
-import core.GameObject;
+import core.scene.Scene;
+import core.gameobject.GameObject;
 
 public class EditorContext {
     private int sceneTextureId;

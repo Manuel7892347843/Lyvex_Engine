@@ -1,7 +1,7 @@
 package ui.panels;
 
-import core.AssetManager;
-import core.ScriptComponentRegistry;
+import core.assetmanager.AssetManager;
+import core.scriptutil.ScriptComponentRegistry;
 import imgui.ImGui;
 import imgui.flag.ImGuiMouseButton;
 import imgui.flag.ImGuiWindowFlags;

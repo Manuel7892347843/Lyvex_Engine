@@ -1,4 +1,6 @@
-package core;
+package core.scene;
+
+import core.gameobject.GameObject;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -6,7 +8,7 @@ import java.util.List;
 
 public class Scene {
     private String name;
-    private final List<GameObject> rootObjects = new ArrayList<>();
+    private static final List<GameObject> rootObjects = new ArrayList<>();
 
     public Scene() {
         this("Untitled Scene");
@@ -24,7 +26,7 @@ public class Scene {
         this.name = name;
     }
 
-    public List<GameObject> getRootObjects() {
+    public static List<GameObject> getRootObjects() {
         return Collections.unmodifiableList(rootObjects);
     }
 

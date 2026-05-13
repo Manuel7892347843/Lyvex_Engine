@@ -1,6 +1,4 @@
-package core;
-
-import core.component.Sprite;
+package core.component.sprite;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -13,7 +11,6 @@ import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL12.GL_CLAMP_TO_EDGE;
 
 public class SpriteLoader {
-
     public static Sprite loadFromFile(Path path) {
         if (path == null || !Files.exists(path)) {
             throw new IllegalArgumentException("Invalid sprite path: " + path);

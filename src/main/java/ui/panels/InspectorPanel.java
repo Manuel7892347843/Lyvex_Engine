@@ -1,12 +1,12 @@
 package ui.panels;
 
-import core.AssetManager;
-import core.GameObject;
-import core.ScriptComponentRegistry;
-import core.SpriteLoader;
+import core.assetmanager.AssetManager;
+import core.gameobject.GameObject;
+import core.scriptutil.ScriptComponentRegistry;
+import core.component.sprite.SpriteLoader;
 import core.component.Component;
-import core.component.Sprite;
-import core.component.SpriteComponent;
+import core.component.sprite.Sprite;
+import core.component.sprite.SpriteComponent;
 import core.component.Transform;
 import imgui.ImGui;
 import imgui.flag.ImGuiCond;
@@ -58,6 +58,12 @@ public class InspectorPanel implements EditorPanel {
         ImGui.separator();
         ImGui.text("ID: " + selected.getId());
 
+        if(ImGui.button("Remove GameObject")){
+            selected.destroy(context);
+            context.setSelectedGameObject(null);
+            context.setSceneDirty(true);
+        }
+
         ImString name = new ImString(selected.getName(), 128);
         if (ImGui.inputText("Name", name, ImGuiInputTextFlags.EnterReturnsTrue)) {
             selected.setName(name.get());
@@ -102,7 +108,8 @@ public class InspectorPanel implements EditorPanel {
                 drawSpriteField(spriteComponent, context);
             }
 
-            if (component instanceof Transform) {
+            if (component instanceof Transform transform) {
+                drawTransformField(transform, context);
                 ImGui.text("Transform is required and cannot be removed.");
             } else {
                 if (ImGui.button("Remove##" + component.hashCode())) {
@@ -157,6 +164,30 @@ public class InspectorPanel implements EditorPanel {
                 }
             } catch (Exception ignored) {
             }
+        }
+    }
+
+    public void drawTransformField(Transform transform, EditorContext context){
+        ImGui.separator();
+        ImGui.text("Position");
+        float[] pos = {transform.getX(), transform.getY()};
+        if(ImGui.dragFloat2("##Position", pos, 0.05f)){
+            transform.setPosition(pos[0], pos[1]);
+            context.setSceneDirty(true);
+        }
+
+        ImGui.text("Rotation");
+        float[] rot = { transform.getRotation() };
+        if (ImGui.dragFloat("##Rotation", rot, 0.5f)) {
+            transform.setRotation(rot[0]);
+            context.setSceneDirty(true);
+        }
+
+        ImGui.text("Scale");
+        float[] scale = {transform.getScale().x, transform.getScale().y};
+        if(ImGui.dragFloat2("##Scale", scale, 0.05f)){
+            transform.setScale(scale[0], scale[1]);
+            context.setSceneDirty(true);
         }
     }
 

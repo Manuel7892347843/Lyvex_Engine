@@ -1,8 +1,10 @@
-package core.component;
+package core.component.sprite;
+
+import core.component.Component;
 
 public class SpriteComponent extends Component {
     private Sprite sprite;
-    public String spriteAssetPath = "";
+    private String spriteAssetPath = "";
 
     public SpriteComponent() {
     }
@@ -25,5 +27,13 @@ public class SpriteComponent extends Component {
 
     public void setSpriteAssetPath(String spriteAssetPath) {
         this.spriteAssetPath = spriteAssetPath;
+    }
+
+    @Override
+    public String toString() {
+        return "SpriteComponent{" +
+                "sprite=" + sprite +
+                ", spriteAssetPath='" + spriteAssetPath + '\'' +
+                '}';
     }
 }

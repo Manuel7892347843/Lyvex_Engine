@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'application'
+    id 'com.gradleup.shadow' version '8.3.5'
 }
 
 group = 'com.lyvex'
@@ -50,6 +51,12 @@ dependencies {
 
     runtimeOnly "io.github.spair:imgui-java-natives-windows:1.86.11"
     runtimeOnly "io.github.spair:imgui-java-natives-macos:1.86.11"
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'Main'
+    }
 }
 
 test {

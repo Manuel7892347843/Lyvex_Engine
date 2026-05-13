@@ -1,6 +1,6 @@
 package core.component;
 
-import core.GameObject;
+import core.gameobject.GameObject;
 
 public class Component {
     private GameObject gameObject;

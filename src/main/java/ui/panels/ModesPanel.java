@@ -1,6 +1,6 @@
 package ui.panels;
 
-import core.Log;
+import core.log.Log;
 import imgui.ImGui;
 import imgui.flag.ImGuiCond;
 import imgui.flag.ImGuiWindowFlags;

@@ -1,4 +1,6 @@
-package core;
+package core.assetmanager;
+
+import core.ProjectManager;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -27,7 +29,7 @@ public class AssetManager {
         String content =
                 (packageName.isBlank() ? "" : "package " + packageName + ";\n\n") +
                         "import core.component.Component;\n" +
-                        "import core.GameObject;\n" +
+                        "import core.gameobject.GameObject;\n" +
                         "public class " + className + " extends Component {\n" +
                         "    public " + className + "() {\n" +
                         "    }\n\n" +

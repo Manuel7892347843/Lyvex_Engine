@@ -3,15 +3,20 @@ package core;
 import static org.lwjgl.glfw.GLFW.*;
 
 import core.component.Component;
+import core.gameobject.GameObject;
+import core.input.InputManager;
 import core.render.FrameBuffer;
 import core.render.SceneRenderer;
+import core.scene.Scene;
+import core.scene.SceneSerializer;
+import core.scriptutil.ScriptAutoRefreshWatcher;
+import core.scriptutil.ScriptComponentRegistry;
 import org.lwjgl.opengl.GL;
 import ui.EditorUI;
 import ui.ImGuiLayer;
 
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -136,13 +141,13 @@ public class Engine {
     }
 
     private void start(){
-        for (GameObject rootObject : currentScene.getRootObjects()) {
+        for (GameObject rootObject : Scene.getRootObjects()) {
             rootObject.getComponents().forEach(Component::start);
         }
     }
 
     private void awakeScene() {
-        for (GameObject rootObject : currentScene.getRootObjects()) {
+        for (GameObject rootObject : Scene.getRootObjects()) {
             rootObject.getComponents().forEach(component -> {
                 if (!component.isAwoken()) {
                     component.awake();
@@ -153,7 +158,7 @@ public class Engine {
     }
 
     private void startScene() {
-        for (GameObject rootObject : currentScene.getRootObjects()) {
+        for (GameObject rootObject : Scene.getRootObjects()) {
             rootObject.getComponents().forEach(component -> {
                 if (component.isEnabled() && !component.isStarted()) {
                     component.start();
@@ -164,7 +169,7 @@ public class Engine {
     }
 
     private void updateScene() {
-        for (GameObject rootObject : currentScene.getRootObjects()) {
+        for (GameObject rootObject : Scene.getRootObjects()) {
             rootObject.getComponents().forEach(component -> {
                 if (component.isEnabled()) {
                     component.update();
@@ -174,7 +179,7 @@ public class Engine {
     }
 
     private void lateUpdateScene() {
-        for (GameObject rootObject : currentScene.getRootObjects()) {
+        for (GameObject rootObject : Scene.getRootObjects()) {
             rootObject.getComponents().forEach(component -> {
                 if (component.isEnabled()) {
                     component.lateUpdate();

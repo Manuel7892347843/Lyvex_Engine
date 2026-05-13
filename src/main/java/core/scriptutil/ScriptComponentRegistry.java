@@ -1,9 +1,12 @@
-package core;
+package core.scriptutil;
 
+import core.ProjectManager;
+import core.assetmanager.AssetManager;
 import core.component.*;
 
 import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
+import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -13,7 +16,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
-import core.component.SpriteComponent;
+import core.component.sprite.SpriteComponent;
 
 public class ScriptComponentRegistry {
     private static final List<Class<? extends Component>> COMPONENT_CLASSES = new ArrayList<>();
@@ -23,6 +26,7 @@ public class ScriptComponentRegistry {
         COMPONENT_CLASSES.add(Camera.class);
         COMPONENT_CLASSES.add(Transform.class);
         COMPONENT_CLASSES.add(SpriteComponent.class);
+        COMPONENT_CLASSES.add(RigidBody2D.class);
 
         Path scriptsRoot = ProjectManager.getScriptsPath();
         if (scriptsRoot == null || !Files.exists(scriptsRoot)) {
@@ -35,6 +39,8 @@ public class ScriptComponentRegistry {
 
     private static void compileScripts(Path scriptsRoot) {
         List<String> sourceFiles = new ArrayList<>();
+
+        Path compiledPath = ProjectManager.getCompiledPath();
 
         try (Stream<Path> paths = Files.walk(scriptsRoot)) {
             paths.filter(path -> path.toString().endsWith(".java"))
@@ -52,14 +58,13 @@ public class ScriptComponentRegistry {
             throw new IllegalStateException("No Java compiler available. Run with a JDK, not a JRE.");
         }
 
-        String projectRoot = ProjectManager.getProjectRoot().toString();
-        String classpath = System.getProperty("java.class.path");
+        String classpath = ProjectManager.getCompiledPath().toString() + File.pathSeparator + System.getProperty("java.class.path");
 
         List<String> args = new ArrayList<>();
         args.add("-classpath");
-        args.add(classpath + ";" + projectRoot);
+        args.add(classpath);
         args.add("-d");
-        args.add(projectRoot);
+        args.add(compiledPath.toString());
         args.addAll(sourceFiles);
 
         int result = compiler.run(null, null, null, args.toArray(new String[0]));
@@ -69,10 +74,10 @@ public class ScriptComponentRegistry {
     }
 
     private static void loadCompiledComponents(Path scriptsRoot) {
-        Path projectRoot = ProjectManager.getProjectRoot().toAbsolutePath();
+        Path compiledPath = ProjectManager.getCompiledPath();
 
         try (URLClassLoader classLoader = new URLClassLoader(
-                new URL[]{projectRoot.toUri().toURL()},
+                new URL[]{compiledPath.toUri().toURL()},
                 ScriptComponentRegistry.class.getClassLoader()
         )) {
             try (Stream<Path> paths = Files.walk(scriptsRoot)) {

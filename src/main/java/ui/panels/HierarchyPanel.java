@@ -1,7 +1,7 @@
 package ui.panels;
 
-import core.GameObject;
-import core.Scene;
+import core.gameobject.GameObject;
+import core.scene.Scene;
 import imgui.ImGui;
 import imgui.flag.ImGuiCond;
 import imgui.flag.ImGuiTreeNodeFlags;

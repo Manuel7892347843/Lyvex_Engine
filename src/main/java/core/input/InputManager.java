@@ -1,4 +1,4 @@
-package core;
+package core.input;
 
 import org.lwjgl.glfw.GLFWCursorPosCallback;
 import org.lwjgl.glfw.GLFWKeyCallback;

@@ -1,9 +1,16 @@
-package core;
+package core.scene;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import core.scriptutil.ScriptComponentRegistry;
+import core.component.sprite.SpriteLoader;
+import core.assetmanager.AssetManager;
 import core.component.Component;
 import core.component.ComponentData;
+import core.component.sprite.Sprite;
+import core.component.sprite.SpriteComponent;
+import core.gameobject.GameObject;
+import core.gameobject.GameObjectData;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -139,6 +146,20 @@ public class SceneSerializer {
 
             if (data.fields != null) {
                 applyFields(component, data.fields);
+            }
+
+            if (component instanceof SpriteComponent spriteComponent) {
+                String assetPath = spriteComponent.getSpriteAssetPath();
+                if (assetPath != null && !assetPath.isBlank()) {
+                    try {
+                        Path realPath = AssetManager.getAssetPath().resolve(assetPath);
+                        Sprite sprite = SpriteLoader.loadFromFile(realPath);
+                        spriteComponent.setSprite(sprite);
+                    } catch (Exception e) {
+                        System.err.println("Failed to reload sprite: " + assetPath);
+                        e.printStackTrace();
+                    }
+                }
             }
 
             return component;

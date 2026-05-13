@@ -1,8 +1,6 @@
-package core;
+package core.log;
 
-import ui.panels.ConsolePanel;
-
-import static core.Logs.logs;
+import static core.log.Logs.logs;
 
 public class Log {
     public String msg = "";
