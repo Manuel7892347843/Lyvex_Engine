@@ -21,7 +21,16 @@ public class ImGuiLayer {
     }
 
     public void render() {
-        ImGui.render();
+        // DEBUG: controlla se ci sono finestre non chiuse
+        // Non c'è API diretta per lo stack size, ma possiamo usare un workaround
+        try {
+            ImGui.render();
+        } catch (AssertionError e) {
+            System.err.println("=== IMGUI BEGIN/END MISMATCH DETECTED ===");
+            System.err.println("This means some panel called ImGui.begin() without matching ImGui.end()");
+            System.err.println("Check all your panels (ModesPanel, HierarchyPanel, etc.)");
+            throw e;
+        }
         gl3.renderDrawData(ImGui.getDrawData());
     }
 

@@ -6,6 +6,7 @@ import core.component.Component;
 import core.gameobject.GameObject;
 import core.input.InputManager;
 import core.render.FrameBuffer;
+import core.render.GameFrameBuffer;
 import core.render.SceneRenderer;
 import core.scene.Scene;
 import core.scene.SceneSerializer;
@@ -24,22 +25,15 @@ import java.nio.file.StandardOpenOption;
 
 public class Engine {
 
-    /// Window size
     private static final int WINDOW_WIDTH = 1920;
     private static final int WINDOW_HEIGHT = 1080;
-
-    /// Window title
     private static final String WINDOW_TITLE = "Lyvex Engine";
-
-    /// Scene dimensions
     private static final int SCENE_WIDTH = 1570;
     private static final int SCENE_HEIGHT = 600;
 
-    /// Engine state
     private static boolean isInPlayMode = false;
     private boolean isInitialized = false;
 
-    /// Time
     private static float deltaTime = 0.0f;
     private double lastFrameTime = 0.0;
 
@@ -48,6 +42,7 @@ public class Engine {
     private ImGuiLayer imguiLayer;
     private SceneRenderer sceneRenderer;
     private FrameBuffer sceneFrameBuffer;
+    private GameFrameBuffer gameFrameBuffer;
     private ScriptAutoRefreshWatcher scriptAutoRefreshWatcher;
 
     private static Scene currentScene;
@@ -87,6 +82,7 @@ public class Engine {
 
         sceneRenderer = new SceneRenderer(SCENE_WIDTH, SCENE_HEIGHT);
         sceneFrameBuffer = new FrameBuffer(SCENE_WIDTH, SCENE_HEIGHT);
+        gameFrameBuffer = new GameFrameBuffer(SCENE_WIDTH, SCENE_HEIGHT);
         editorUI = new EditorUI();
         editorUI.getContext().setEngine(this);
 
@@ -100,7 +96,6 @@ public class Engine {
         sceneRenderer.setScene(currentScene);
     }
 
-    /// Main loop
     private void loop() {
         while (!glfwWindowShouldClose(window)) {
             double currentTime = glfwGetTime();
@@ -108,34 +103,56 @@ public class Engine {
             lastFrameTime = currentTime;
 
             glfwPollEvents();
-
             imguiLayer.startFrame();
 
-            editorUI.getContext().setSceneTextureId(sceneFrameBuffer.getTextureId());
-            editorUI.draw();
-
-            if (!isInPlayMode) {
-                sceneRenderer.updateCamera(editorUI.getContext());
-            }
-
+            // === GESTIONE STATO PLAY MODE (PRIMA del rendering) ===
             if (isInPlayMode && !isInitialized) {
                 awakeScene();
                 startScene();
                 isInitialized = true;
+                editorUI.setShowGameView(true);  // ← QUI, prima di draw()
             }
 
+            if (!isInPlayMode && isInitialized) {
+                isInitialized = false;
+                editorUI.setShowGameView(false); // ← QUI, prima di draw()
+            }
+
+            // === UPDATE LOGICA (solo in play) ===
             if (isInPlayMode) {
                 updateScene();
                 lateUpdateScene();
             }
 
+            // === RENDERING FRAMEBUFFER ===
+
+            // Game view (solo se in play mode)
+            if (isInPlayMode) {
+                gameFrameBuffer.bind();
+                sceneRenderer.setUseSceneCamera(true);
+                sceneRenderer.render();
+                gameFrameBuffer.unbind();
+                editorUI.getGamePanel().setGameTextureId(gameFrameBuffer.getTextureId());
+            }
+
+            // Scene view (sempre, per l'editor)
             sceneFrameBuffer.bind();
+            sceneRenderer.setUseSceneCamera(false);
             sceneRenderer.render();
             sceneFrameBuffer.unbind();
 
+            editorUI.getContext().setSceneTextureId(sceneFrameBuffer.getTextureId());
+
+            // === UI ===
+            editorUI.draw();
+
+            // === CAMERA EDITOR (solo se non in play) ===
+            if (!isInPlayMode) {
+                sceneRenderer.updateCamera(editorUI.getContext());
+            }
+
             imguiLayer.render();
             glfwSwapBuffers(window);
-
             InputManager.endFrame();
         }
     }
@@ -359,6 +376,10 @@ public class Engine {
         }
     }
 
+    public EditorUI getEditorUI() {
+        return editorUI;
+    }
+
     private void cleanup() {
         if (scriptAutoRefreshWatcher != null) {
             scriptAutoRefreshWatcher.stop();
@@ -370,6 +391,10 @@ public class Engine {
 
         if (sceneFrameBuffer != null) {
             sceneFrameBuffer.dispose();
+        }
+
+        if (gameFrameBuffer != null) {
+            gameFrameBuffer.dispose();
         }
 
         InputManager.dispose();

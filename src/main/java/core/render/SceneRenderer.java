@@ -1,17 +1,16 @@
 package core.render;
 
-import core.input.InputManager;
-import core.scene.Scene;
+import core.Engine;
+import core.component.Camera;
 import core.component.EditorCamera2D;
-import core.gameobject.GameObject;
-import core.component.sprite.Sprite;
 import core.component.sprite.SpriteComponent;
+import core.gameobject.GameObject;
+import core.input.InputManager;
+import core.math.matrix4f;
+import core.scene.Scene;
 import ui.EditorContext;
 
-import static org.lwjgl.glfw.GLFW.GLFW_KEY_A;
-import static org.lwjgl.glfw.GLFW.GLFW_KEY_D;
-import static org.lwjgl.glfw.GLFW.GLFW_KEY_S;
-import static org.lwjgl.glfw.GLFW.GLFW_KEY_W;
+import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL15.*;
 import static org.lwjgl.opengl.GL20.*;
@@ -20,8 +19,8 @@ import static org.lwjgl.opengl.GL30.*;
 public class SceneRenderer {
     private final int viewportWidth;
     private final int viewportHeight;
-    private final EditorCamera2D camera = new EditorCamera2D();
-
+    private final EditorCamera2D editorCamera = new EditorCamera2D();
+    private boolean useSceneCamera = false;
     private int shaderProgram;
     private int vao;
     private int vbo;
@@ -39,29 +38,47 @@ public class SceneRenderer {
         this.scene = scene;
     }
 
+    public void setUseSceneCamera(boolean use) {
+        this.useSceneCamera = use;
+    }
+
+    public boolean isUsingSceneCamera() {
+        return useSceneCamera;
+    }
+
+    public EditorCamera2D getEditorCamera() {
+        return editorCamera;
+    }
+
     public void updateCamera(EditorContext context) {
         if (!context.isSceneHovered()) {
             return;
         }
 
+        // Velocità in unità world, scalata per deltaTime
+        float speed = editorCamera.getMoveSpeed() * Engine.getDeltaTime();
+
         if (InputManager.isKeyDown(GLFW_KEY_A)) {
-            camera.setX(camera.getX() - camera.getMoveSpeed() * 0.01f);
+            editorCamera.setX(editorCamera.getX() - speed);
         }
         if (InputManager.isKeyDown(GLFW_KEY_D)) {
-            camera.setX(camera.getX() + camera.getMoveSpeed() * 0.01f);
+            editorCamera.setX(editorCamera.getX() + speed);
         }
         if (InputManager.isKeyDown(GLFW_KEY_W)) {
-            camera.setY(camera.getY() + camera.getMoveSpeed() * 0.01f);
+            editorCamera.setY(editorCamera.getY() + speed);
         }
         if (InputManager.isKeyDown(GLFW_KEY_S)) {
-            camera.setY(camera.getY() - camera.getMoveSpeed() * 0.01f);
+            editorCamera.setY(editorCamera.getY() - speed);
         }
 
-        float newZoom = camera.getZoom() + InputManager.getScrollY() * camera.getZoomSpeed();
-        if (newZoom < 0.1f) {
-            newZoom = 0.1f;
+        // Zoom con limiti
+        float scroll = InputManager.getScrollY();
+        if (scroll != 0) {
+            float newZoom = editorCamera.getZoom() + scroll * editorCamera.getZoomSpeed();
+            if (newZoom < 0.1f) newZoom = 0.1f;
+            if (newZoom > 10.0f) newZoom = 10.0f;
+            editorCamera.setZoom(newZoom);
         }
-        camera.setZoom(newZoom);
     }
 
     public void render() {
@@ -73,51 +90,111 @@ public class SceneRenderer {
         glClearColor(0.15f, 0.15f, 0.18f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        if (scene == null) {
-            return;
-        }
+        if (scene == null) return;
 
         glUseProgram(shaderProgram);
 
-        int cameraPosLocation = glGetUniformLocation(shaderProgram, "uCameraPos");
-        int zoomLocation = glGetUniformLocation(shaderProgram, "uZoom");
-        int objectPosLocation = glGetUniformLocation(shaderProgram, "uObjectPos");
-        int objectScaleLocation = glGetUniformLocation(shaderProgram, "uObjectScale");
+        // --- CALCOLO VIEW PROJECTION ---
+        matrix4f viewProj;
 
-        glUniform2f(cameraPosLocation, camera.getX(), camera.getY());
-        glUniform1f(zoomLocation, camera.getZoom());
+        if (useSceneCamera) {
+            Camera sceneCamera = findPrimaryCamera();
+            if (sceneCamera != null) {
+                viewProj = sceneCamera.getViewProjectionMatrix(viewportWidth, viewportHeight);
+            } else {
+                viewProj = getEditorCameraMatrix();
+            }
+        } else {
+            viewProj = getEditorCameraMatrix();
+        }
+
+        // Passa ViewProjection allo shader
+        int vpLocation = glGetUniformLocation(shaderProgram, "uViewProjection");
+        if (vpLocation != -1) {
+            float[] vpArray = new float[16];
+            viewProj.get(vpArray);
+            glUniformMatrix4fv(vpLocation, false, vpArray);
+        }
+
+        // NUOVO: Location per la matrice modello
+        int modelLocation = glGetUniformLocation(shaderProgram, "uModel");
 
         glBindVertexArray(vao);
         for (GameObject root : scene.getRootObjects()) {
-            renderGameObjectRecursive(root, objectPosLocation, objectScaleLocation, 0.0f, 0.0f);
+            renderGameObjectRecursive(root, modelLocation);
         }
         glBindVertexArray(0);
 
         glUseProgram(0);
     }
 
-    private void renderGameObjectRecursive(GameObject gameObject, int objectPosLocation, int objectScaleLocation, float parentX, float parentY) {
-        float worldX = parentX + gameObject.getTransform().getPosition().x;
-        float worldY = parentY + gameObject.getTransform().getPosition().y;
+    private Camera findPrimaryCamera() {
+        if (scene == null) return null;
+        for (GameObject go : scene.getRootObjects()) {
+            Camera cam = go.getComponent(Camera.class);
+            if (cam != null && cam.primary) return cam;
+            Camera childCam = findCameraInChildren(go);
+            if (childCam != null) return childCam;
+        }
+        return null;
+    }
+
+    private Camera findCameraInChildren(GameObject parent) {
+        for (GameObject child : parent.getChildren()) {
+            Camera cam = child.getComponent(Camera.class);
+            if (cam != null && cam.primary) return cam;
+            Camera found = findCameraInChildren(child);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private matrix4f getEditorCameraMatrix() {
+        // La view matrix trasla in direzione opposta alla camera
+        matrix4f view = new matrix4f()
+                .translate(-editorCamera.getX(), -editorCamera.getY(), 0.0f);
+
+        float aspect = (float) viewportWidth / viewportHeight;
+
+        // L'ortho size è indipendente dallo zoom
+        // Zoom > 1 = zoom in (vedi meno area)
+        // Zoom < 1 = zoom out (vedi più area)
+        float halfHeight = editorCamera.getOrthoSize() / editorCamera.getZoom();
+        float halfWidth = halfHeight * aspect;
+
+        matrix4f proj = new matrix4f().ortho(
+                -halfWidth, halfWidth,
+                -halfHeight, halfHeight,
+                -100.0f, 100.0f
+        );
+
+        return proj.mul(view);
+    }
+
+    // NUOVO: Renderizza usando la matrice modello del Transform
+    private void renderGameObjectRecursive(GameObject gameObject, int modelLocation) {
+        if (!gameObject.isActive()) return;
 
         SpriteComponent spriteComponent = gameObject.getComponent(SpriteComponent.class);
         if (spriteComponent != null && spriteComponent.getSprite() != null) {
-            glUniform2f(objectPosLocation, worldX, worldY);
-            glUniform2f(objectScaleLocation, gameObject.getTransform().getScale().x, gameObject.getTransform().getScale().y);
+            // Ottieni la matrice modello dal Transform
+            matrix4f model = gameObject.getTransform().getModelMatrix();
 
-            Sprite sprite = spriteComponent.getSprite();
+            // Passa allo shader
+            if (modelLocation != -1) {
+                float[] modelArray = new float[16];
+                model.get(modelArray);
+                glUniformMatrix4fv(modelLocation, false, modelArray);
+            }
+
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, sprite.getTextureId());
+            glBindTexture(GL_TEXTURE_2D, spriteComponent.getSprite().getTextureId());
             glDrawArrays(GL_TRIANGLES, 0, 6);
         }
 
         for (GameObject child : gameObject.getChildren()) {
-            renderGameObjectRecursive(child, objectPosLocation, objectScaleLocation, worldX, worldY);
+            renderGameObjectRecursive(child, modelLocation);
         }
-    }
-
-    public EditorCamera2D getCamera() {
-        return camera;
     }
 
     public void dispose() {
@@ -128,11 +205,9 @@ public class SceneRenderer {
 
     private void createQuad() {
         float[] vertices = {
-                // pos      // uv
                 -0.5f, -0.5f, 0.0f, 0.0f,
                 0.5f, -0.5f, 1.0f, 0.0f,
                 0.5f,  0.5f, 1.0f, 1.0f,
-
                 -0.5f, -0.5f, 0.0f, 0.0f,
                 0.5f,  0.5f, 1.0f, 1.0f,
                 -0.5f,  0.5f, 0.0f, 1.0f
@@ -147,7 +222,6 @@ public class SceneRenderer {
 
         glVertexAttribPointer(0, 2, GL_FLOAT, false, 4 * Float.BYTES, 0);
         glEnableVertexAttribArray(0);
-
         glVertexAttribPointer(1, 2, GL_FLOAT, false, 4 * Float.BYTES, 2L * Float.BYTES);
         glEnableVertexAttribArray(1);
 
@@ -156,21 +230,18 @@ public class SceneRenderer {
     }
 
     private void createShader() {
+        // NUOVO SHADER: usa uModel invece di uObjectPos/uObjectScale/uObjectRotation
         String vertexShaderSource =
                 "#version 330 core\n" +
                         "layout (location = 0) in vec2 aPos;\n" +
                         "layout (location = 1) in vec2 aUV;\n" +
                         "out vec2 vUV;\n" +
-                        "uniform vec2 uCameraPos;\n" +
-                        "uniform float uZoom;\n" +
-                        "uniform vec2 uObjectPos;\n" +
-                        "uniform vec2 uObjectScale;\n" +
+                        "uniform mat4 uViewProjection;\n" +
+                        "uniform mat4 uModel;\n" +
                         "void main() {\n" +
                         "    vUV = aUV;\n" +
-                        "    vec2 scaledPos = aPos * uObjectScale;\n" +
-                        "    vec2 worldPos = scaledPos + uObjectPos;\n" +
-                        "    vec2 viewPos = (worldPos - uCameraPos) * uZoom;\n" +
-                        "    gl_Position = vec4(viewPos, 0.0, 1.0);\n" +
+                        "    vec4 worldPos = uModel * vec4(aPos, 0.0, 1.0);\n" +
+                        "    gl_Position = uViewProjection * worldPos;\n" +
                         "}";
 
         String fragmentShaderSource =
@@ -185,7 +256,6 @@ public class SceneRenderer {
         int vertexShader = glCreateShader(GL_VERTEX_SHADER);
         glShaderSource(vertexShader, vertexShaderSource);
         glCompileShader(vertexShader);
-
         if (glGetShaderi(vertexShader, GL_COMPILE_STATUS) == 0) {
             throw new IllegalStateException("Vertex shader error: " + glGetShaderInfoLog(vertexShader));
         }
@@ -193,7 +263,6 @@ public class SceneRenderer {
         int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
         glShaderSource(fragmentShader, fragmentShaderSource);
         glCompileShader(fragmentShader);
-
         if (glGetShaderi(fragmentShader, GL_COMPILE_STATUS) == 0) {
             throw new IllegalStateException("Fragment shader error: " + glGetShaderInfoLog(fragmentShader));
         }
@@ -204,12 +273,11 @@ public class SceneRenderer {
         glLinkProgram(shaderProgram);
 
         if (glGetProgrami(shaderProgram, GL_LINK_STATUS) == 0) {
-            throw new IllegalStateException("Shader program link error: " + glGetProgramInfoLog(shaderProgram));
+            throw new IllegalStateException("Shader link error: " + glGetProgramInfoLog(shaderProgram));
         }
 
         glUseProgram(shaderProgram);
-        int textureLocation = glGetUniformLocation(shaderProgram, "uTexture");
-        glUniform1i(textureLocation, 0);
+        glUniform1i(glGetUniformLocation(shaderProgram, "uTexture"), 0);
         glUseProgram(0);
 
         glDeleteShader(vertexShader);

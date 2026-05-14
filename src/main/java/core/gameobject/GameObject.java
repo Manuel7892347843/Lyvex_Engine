@@ -137,6 +137,10 @@ public class GameObject {
         return null;
     }
 
+    public boolean isActive(){
+        return true;
+    }
+
     public void destroy(EditorContext context){
         if(destroyed)
             return;
