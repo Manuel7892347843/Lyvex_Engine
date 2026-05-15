@@ -3,12 +3,16 @@ package core.render;
 import core.Engine;
 import core.component.Camera;
 import core.component.EditorCamera2D;
+import core.component.sprite.Sprite;
 import core.component.sprite.SpriteComponent;
+import core.component.tilemap.Tilemap;
 import core.gameobject.GameObject;
 import core.input.InputManager;
 import core.math.matrix4f;
 import core.scene.Scene;
 import ui.EditorContext;
+
+import java.util.Map;
 
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
@@ -55,7 +59,6 @@ public class SceneRenderer {
             return;
         }
 
-        // Velocità in unità world, scalata per deltaTime
         float speed = editorCamera.getMoveSpeed() * Engine.getDeltaTime();
 
         if (InputManager.isKeyDown(GLFW_KEY_A)) {
@@ -71,7 +74,6 @@ public class SceneRenderer {
             editorCamera.setY(editorCamera.getY() - speed);
         }
 
-        // Zoom con limiti
         float scroll = InputManager.getScrollY();
         if (scroll != 0) {
             float newZoom = editorCamera.getZoom() + scroll * editorCamera.getZoomSpeed();
@@ -94,7 +96,6 @@ public class SceneRenderer {
 
         glUseProgram(shaderProgram);
 
-        // --- CALCOLO VIEW PROJECTION ---
         matrix4f viewProj;
 
         if (useSceneCamera) {
@@ -108,7 +109,6 @@ public class SceneRenderer {
             viewProj = getEditorCameraMatrix();
         }
 
-        // Passa ViewProjection allo shader
         int vpLocation = glGetUniformLocation(shaderProgram, "uViewProjection");
         if (vpLocation != -1) {
             float[] vpArray = new float[16];
@@ -116,7 +116,6 @@ public class SceneRenderer {
             glUniformMatrix4fv(vpLocation, false, vpArray);
         }
 
-        // NUOVO: Location per la matrice modello
         int modelLocation = glGetUniformLocation(shaderProgram, "uModel");
 
         glBindVertexArray(vao);
@@ -150,15 +149,11 @@ public class SceneRenderer {
     }
 
     private matrix4f getEditorCameraMatrix() {
-        // La view matrix trasla in direzione opposta alla camera
         matrix4f view = new matrix4f()
                 .translate(-editorCamera.getX(), -editorCamera.getY(), 0.0f);
 
         float aspect = (float) viewportWidth / viewportHeight;
 
-        // L'ortho size è indipendente dallo zoom
-        // Zoom > 1 = zoom in (vedi meno area)
-        // Zoom < 1 = zoom out (vedi più area)
         float halfHeight = editorCamera.getOrthoSize() / editorCamera.getZoom();
         float halfWidth = halfHeight * aspect;
 
@@ -171,30 +166,99 @@ public class SceneRenderer {
         return proj.mul(view);
     }
 
-    // NUOVO: Renderizza usando la matrice modello del Transform
     private void renderGameObjectRecursive(GameObject gameObject, int modelLocation) {
         if (!gameObject.isActive()) return;
 
         SpriteComponent spriteComponent = gameObject.getComponent(SpriteComponent.class);
         if (spriteComponent != null && spriteComponent.getSprite() != null) {
-            // Ottieni la matrice modello dal Transform
             matrix4f model = gameObject.getTransform().getModelMatrix();
-
-            // Passa allo shader
             if (modelLocation != -1) {
                 float[] modelArray = new float[16];
                 model.get(modelArray);
                 glUniformMatrix4fv(modelLocation, false, modelArray);
             }
 
+            int uvOffsetLoc = glGetUniformLocation(shaderProgram, "uUVOffset");
+            int uvScaleLoc = glGetUniformLocation(shaderProgram, "uUVScale");
+            if (uvOffsetLoc != -1) glUniform2f(uvOffsetLoc, 0, 0);
+            if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1, 1);
+
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, spriteComponent.getSprite().getTextureId());
             glDrawArrays(GL_TRIANGLES, 0, 6);
         }
 
+        Tilemap tilemap = gameObject.getComponent(Tilemap.class);
+        if (tilemap != null) {
+            renderTilemap(tilemap, modelLocation);
+        }
+
         for (GameObject child : gameObject.getChildren()) {
             renderGameObjectRecursive(child, modelLocation);
         }
+    }
+
+    private void renderTilemap(Tilemap tilemap, int modelLocation) {
+        Sprite tileset = tilemap.getTilesetSprite();
+        if (tileset == null) return;
+
+        int tileSize = tilemap.getTileSize();
+        int tilesPerRow = tilemap.getTilesPerRow();
+        if (tilesPerRow <= 0) return;
+
+        int texId = tileset.getTextureId();
+        float texWidth = tileset.getWidth();
+        float texHeight = tileset.getHeight();
+
+        int uvOffsetLoc = glGetUniformLocation(shaderProgram, "uUVOffset");
+        int uvScaleLoc = glGetUniformLocation(shaderProgram, "uUVScale");
+
+        matrix4f modelMatrix = new matrix4f();
+
+        // Itera solo sulle tile esistenti
+        for (Map.Entry<String, Integer> entry : tilemap.getTiles().entrySet()) {
+            String[] parts = entry.getKey().split(",");
+            int x = Integer.parseInt(parts[0]);
+            int y = Integer.parseInt(parts[1]);
+            int tileId = entry.getValue();
+
+            if (tileId <= 0) continue;
+
+            // Calcola UV
+            int tileX = (tileId - 1) % tilesPerRow;
+            int tileY = (tileId - 1) / tilesPerRow;
+
+            float u1 = (tileX * tileSize) / texWidth;
+            float v1 = (tileY * tileSize) / texHeight;
+            float uSize = (float) tileSize / texWidth;
+            float vSize = (float) tileSize / texHeight;
+
+            if (uvOffsetLoc != -1) glUniform2f(uvOffsetLoc, u1, v1);
+            if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, uSize, vSize);
+
+            float worldScale = tileSize / tilemap.getPixelsPerUnit();
+            float worldX = x * worldScale;
+            float worldY = y * worldScale;
+
+            // Posizione world
+            modelMatrix.identity()
+                    .translate(worldX, worldY, 0)
+                    .scale(worldScale, worldScale, 1);
+
+            if (modelLocation != -1) {
+                float[] modelArray = new float[16];
+                modelMatrix.get(modelArray);
+                glUniformMatrix4fv(modelLocation, false, modelArray);
+            }
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texId);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+
+        // Reset UV
+        if (uvOffsetLoc != -1) glUniform2f(uvOffsetLoc, 0, 0);
+        if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1, 1);
     }
 
     public void dispose() {
@@ -230,7 +294,6 @@ public class SceneRenderer {
     }
 
     private void createShader() {
-        // NUOVO SHADER: usa uModel invece di uObjectPos/uObjectScale/uObjectRotation
         String vertexShaderSource =
                 "#version 330 core\n" +
                         "layout (location = 0) in vec2 aPos;\n" +
@@ -238,8 +301,10 @@ public class SceneRenderer {
                         "out vec2 vUV;\n" +
                         "uniform mat4 uViewProjection;\n" +
                         "uniform mat4 uModel;\n" +
+                        "uniform vec2 uUVOffset;\n" +
+                        "uniform vec2 uUVScale;\n" +
                         "void main() {\n" +
-                        "    vUV = aUV;\n" +
+                        "    vUV = uUVOffset + aUV * uUVScale;\n" +
                         "    vec4 worldPos = uModel * vec4(aPos, 0.0, 1.0);\n" +
                         "    gl_Position = uViewProjection * worldPos;\n" +
                         "}";

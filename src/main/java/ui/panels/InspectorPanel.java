@@ -1,8 +1,10 @@
 package ui.panels;
 
 import core.assetmanager.AssetManager;
+import core.component.tilemap.Tilemap;
 import core.gameobject.GameObject;
 import core.math.vector2D;
+import core.math.vector2f;
 import core.math.vector3f;
 import core.scriptutil.ScriptComponentRegistry;
 import core.component.sprite.SpriteLoader;
@@ -11,9 +13,12 @@ import core.component.sprite.Sprite;
 import core.component.sprite.SpriteComponent;
 import core.component.Transform;
 import imgui.ImGui;
+import imgui.ImVec2;
+import imgui.flag.ImGuiCol;
 import imgui.flag.ImGuiCond;
 import imgui.flag.ImGuiInputTextFlags;
 import imgui.flag.ImGuiWindowFlags;
+import imgui.type.ImBoolean;
 import imgui.type.ImString;
 import ui.EditorContext;
 import ui.EditorPanel;
@@ -24,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 public class InspectorPanel implements EditorPanel {
@@ -33,6 +39,9 @@ public class InspectorPanel implements EditorPanel {
     private final int HEIGHT = 637;
 
     private SpriteComponent spritePickerTarget;
+    private Tilemap editingTilemap = null;
+    private int selectedTileId = 1;
+    private ImBoolean tilemapEditorOpen = new ImBoolean(false);
 
     @Override
     public void init() {
@@ -120,6 +129,11 @@ public class InspectorPanel implements EditorPanel {
             if (component instanceof Transform transform) {
                 drawTransformField(transform, context);
                 ImGui.text("Transform is required and cannot be removed.");
+            } else if (component instanceof Tilemap tilemap) {
+                drawTilemapEditor(tilemap, context);
+                if (ImGui.button("Remove##" + component.hashCode())) {
+                    removableComponents.add(component);
+                }
             } else {
                 if (ImGui.button("Remove##" + component.hashCode())) {
                     removableComponents.add(component);
@@ -135,6 +149,10 @@ public class InspectorPanel implements EditorPanel {
         drawSpritePickerPopup(context);
 
         ImGui.end();
+
+        if (tilemapEditorOpen.get() && editingTilemap != null) {
+            drawTilemapEditorWindow(context);
+        }
     }
 
     private void drawComponentFields(Component component, EditorContext context) {
@@ -289,6 +307,268 @@ public class InspectorPanel implements EditorPanel {
 
             ImGui.endPopup();
         }
+    }
+
+    private void drawTilemapEditor(Tilemap tilemap, EditorContext context) {
+        ImGui.separator();
+        ImGui.text("Tilemap");
+
+        // Solo Tile Size (non più width/height)
+        int[] tileSize = { tilemap.getTileSize() };
+        if (ImGui.dragInt("Tile Size", tileSize, 1, 8, 256)) {
+            tilemap.setTileSize(tileSize[0]);
+            context.setSceneDirty(true);
+        }
+
+        // Info tile count
+        ImGui.text("Tiles placed: " + tilemap.getTiles().size());
+
+        // Tileset picker
+        ImString tilesetPath = new ImString(tilemap.getTilesetPath() != null ? tilemap.getTilesetPath() : "", 256);
+        if (ImGui.inputText("Tileset Path", tilesetPath)) {
+            tilemap.setTilesetPath(tilesetPath.get());
+            tilemap.loadTileset();
+            context.setSceneDirty(true);
+        }
+        ImGui.sameLine();
+        if (ImGui.button("Choose##Tileset")) {
+            ImGui.openPopup("TilesetPickerPopup");
+        }
+
+        // Popup tileset
+        if (ImGui.beginPopup("TilesetPickerPopup")) {
+            Path assetsRoot = AssetManager.getAssetPath();
+            try (Stream<Path> paths = Files.walk(assetsRoot)) {
+                paths.filter(Files::isRegularFile)
+                        .filter(this::isImageFile)
+                        .forEach(path -> {
+                            String relative = assetsRoot.relativize(path).toString().replace('\\', '/');
+                            if (ImGui.selectable(relative)) {
+                                tilemap.setTilesetPath(relative);
+                                tilemap.loadTileset();
+                                context.setSceneDirty(true);
+                                ImGui.closeCurrentPopup();
+                            }
+                        });
+            } catch (IOException e) {
+                ImGui.text("Failed to read assets folder");
+            }
+            if (ImGui.button("Close")) {
+                ImGui.closeCurrentPopup();
+            }
+            ImGui.endPopup();
+        }
+
+        // Bottone per aprire l'editor dedicato
+        if (ImGui.button("Open Tilemap Editor", 200, 30)) {
+            tilemapEditorOpen.set(true);
+            editingTilemap = tilemap;
+        }
+    }
+
+    private void drawTilemapEditorWindow(EditorContext context) {
+        ImGui.setNextWindowSize(800, 600, ImGuiCond.FirstUseEver);
+
+        ImGui.begin("Tilemap Editor", tilemapEditorOpen, ImGuiWindowFlags.MenuBar);
+
+        if (!tilemapEditorOpen.get()) {
+            editingTilemap = null;
+            ImGui.end();
+            return;
+        }
+
+        Tilemap tilemap = editingTilemap;
+
+        // === MENU BAR ===
+        if (ImGui.beginMenuBar()) {
+            if (ImGui.beginMenu("Tools")) {
+                if (ImGui.menuItem("Clear All")) {
+                    tilemap.getTiles().clear();
+                    context.setSceneDirty(true);
+                }
+                ImGui.endMenu();
+            }
+            ImGui.endMenuBar();
+        }
+
+        float paletteWidth = 150;
+
+        // PALETTE (sinistra)
+        ImGui.beginChild("Palette", paletteWidth, 0, true);
+        ImGui.text("Palette");
+        ImGui.separator();
+
+        if (tilemap.getTilesetSprite() != null) {
+            int tilesPerRow = tilemap.getTilesPerRow();
+            int tilesPerCol = tilemap.getTilesetSprite().getHeight() / tilemap.getTileSize();
+            int totalTiles = tilesPerRow * tilesPerCol;
+            int paletteTileSize = 40;
+
+            int texId = tilemap.getTilesetSprite().getTextureId();
+            float texWidth = tilemap.getTilesetSprite().getWidth();
+            float texHeight = tilemap.getTilesetSprite().getHeight();
+            float tileSize = tilemap.getTileSize();
+
+            for (int i = 0; i <= totalTiles; i++) {
+                ImGui.pushID("palette_" + i);
+
+                boolean isSelected = (selectedTileId == i);
+                boolean clicked;
+
+                if (i == 0) {
+                    if (isSelected) {
+                        ImGui.pushStyleColor(ImGuiCol.Button, 1.0f, 0.3f, 0.3f, 1.0f);
+                    }
+                    clicked = ImGui.button("Er", paletteTileSize, paletteTileSize);
+                    if (isSelected) {
+                        ImGui.popStyleColor();
+                    }
+                } else {
+                    int tileX = (i - 1) % tilesPerRow;
+                    int tileY = (i - 1) / tilesPerRow;
+
+                    float u1 = (tileX * tileSize) / texWidth;
+                    float v1 = (tileY * tileSize) / texHeight;
+                    float u2 = ((tileX + 1) * tileSize) / texWidth;
+                    float v2 = ((tileY + 1) * tileSize) / texHeight;
+
+                    clicked = ImGui.imageButton(texId, paletteTileSize, paletteTileSize, u1, v1, u2, v2);
+                }
+
+                if (clicked) {
+                    selectedTileId = i;
+                }
+
+                ImGui.popID();
+
+                if ((i + 1) % 3 != 0 && i < totalTiles) {
+                    ImGui.sameLine();
+                }
+            }
+        } else {
+            ImGui.text("No tileset loaded!");
+        }
+
+        ImGui.separator();
+        if (selectedTileId == 0) {
+            ImGui.text("Tool: Eraser");
+        } else {
+            ImGui.text("Selected: Tile " + selectedTileId);
+        }
+
+        ImGui.endChild();
+
+        ImGui.sameLine();
+
+        // === VIEWPORT DI DISEGNO (destra) ===
+        ImGui.beginChild("Canvas", 0, 0, true);
+
+        // Ottieni la posizione del mouse nel canvas
+        ImVec2 canvasPos = ImGui.getCursorScreenPos();
+        ImVec2 mousePos = ImGui.getMousePos();
+        vector2f relMouse = new vector2f(mousePos.x - canvasPos.x, mousePos.y - canvasPos.y);
+
+        int tileSize = tilemap.getTileSize();
+
+        // Calcola quale tile è sotto il mouse
+        int hoverX = (int)(relMouse.x / tileSize);
+        int hoverY = (int)(relMouse.y / tileSize);
+
+        // Offset per centrare la vista (opzionale)
+        float offsetX = 0;
+        float offsetY = 0;
+
+        // Disegna la griglia di sfondo
+        ImVec2 canvasSize = ImGui.getContentRegionAvail();
+        int colsVisible = (int)(canvasSize.x / tileSize) + 2;
+        int rowsVisible = (int)(canvasSize.y / tileSize) + 2;
+
+        // Calcola range visibile
+        int startCol = (int)(-offsetX / tileSize);
+        int startRow = (int)(-offsetY / tileSize);
+
+        boolean mouseDown = ImGui.isMouseDown(0);
+        boolean mouseClicked = ImGui.isMouseClicked(0);
+
+        // Disegna le tile esistenti
+        if (tilemap.getTilesetSprite() != null) {
+            int texId = tilemap.getTilesetSprite().getTextureId();
+            float texWidth = tilemap.getTilesetSprite().getWidth();
+            float texHeight = tilemap.getTilesetSprite().getHeight();
+            int tilesPerRow = tilemap.getTilesPerRow();
+
+            for (Map.Entry<String, Integer> entry : tilemap.getTiles().entrySet()) {
+                String[] parts = entry.getKey().split(",");
+                int tx = Integer.parseInt(parts[0]);
+                int ty = Integer.parseInt(parts[1]);
+                int tileId = entry.getValue();
+
+                if (tileId <= 0) continue;
+
+                // Posizione sullo schermo
+                float screenX = canvasPos.x + tx * tileSize + offsetX;
+                float screenY = canvasPos.y + ty * tileSize + offsetY;
+
+                // Calcola UV
+                int tileX = (tileId - 1) % tilesPerRow;
+                int tileY = (tileId - 1) / tilesPerRow;
+
+                float u1 = (tileX * tileSize) / texWidth;
+                float v1 = (tileY * tileSize) / texHeight;
+                float u2 = ((tileX + 1) * tileSize) / texWidth;
+                float v2 = ((tileY + 1) * tileSize) / texHeight;
+
+                // Disegna il tile
+                ImGui.getWindowDrawList().addImage(
+                        texId,
+                        screenX, screenY,
+                        screenX + tileSize, screenY + tileSize,
+                        u1, v1, u2, v2
+                );
+            }
+        }
+
+        // Disegna la griglia
+        for (int row = startRow; row < startRow + rowsVisible; row++) {
+            for (int col = startCol; col < startCol + colsVisible; col++) {
+                float x = canvasPos.x + col * tileSize + offsetX;
+                float y = canvasPos.y + row * tileSize + offsetY;
+
+                // Linee della griglia
+                ImGui.getWindowDrawList().addRect(
+                        x, y, x + tileSize, y + tileSize,
+                        0x40FFFFFF // colore semi-trasparente
+                );
+            }
+        }
+
+        // Disegna il cursore (hover)
+        if (hoverX >= startCol && hoverX < startCol + colsVisible &&
+                hoverY >= startRow && hoverY < startRow + rowsVisible) {
+
+            float hx = canvasPos.x + hoverX * tileSize + offsetX;
+            float hy = canvasPos.y + hoverY * tileSize + offsetY;
+
+            // Highlight della cella sotto il mouse
+            ImGui.getWindowDrawList().addRectFilled(
+                    hx, hy, hx + tileSize, hy + tileSize,
+                    0x40FF0000 // rosso semi-trasparente
+            );
+        }
+
+        // Input: click per disegnare
+        if (ImGui.isWindowHovered() && (mouseClicked || (mouseDown && ImGui.isMouseDragging(0)))) {
+            tilemap.setTile(hoverX, hoverY, selectedTileId);
+            context.setSceneDirty(true);
+        }
+
+        // Info
+        ImGui.text("Hover: " + hoverX + ", " + hoverY);
+        ImGui.text("Tiles: " + tilemap.getTiles().size());
+
+        ImGui.endChild();
+
+        ImGui.end();
     }
 
     private boolean isImageFile(Path path) {

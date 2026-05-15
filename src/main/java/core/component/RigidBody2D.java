@@ -81,7 +81,7 @@ public class RigidBody2D extends Component{
     }
 
     public float getKineticEnergy() {
-        float speedSq = velocity.dot(velocity); // |v|²
+        float speedSq = velocity.dot(velocity);
         return 0.5f * mass * speedSq;
     }
 

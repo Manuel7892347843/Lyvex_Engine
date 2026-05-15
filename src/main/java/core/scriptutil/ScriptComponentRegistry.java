@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 import core.component.sprite.SpriteComponent;
+import core.component.tilemap.Tilemap;
 
 public class ScriptComponentRegistry {
     private static final List<Class<? extends Component>> COMPONENT_CLASSES = new ArrayList<>();
@@ -28,6 +29,7 @@ public class ScriptComponentRegistry {
         COMPONENT_CLASSES.add(SpriteComponent.class);
         COMPONENT_CLASSES.add(RigidBody2D.class);
         COMPONENT_CLASSES.add(ParentFollower.class);
+        COMPONENT_CLASSES.add(Tilemap.class);
 
         Path scriptsRoot = ProjectManager.getScriptsPath();
         if (scriptsRoot == null || !Files.exists(scriptsRoot)) {

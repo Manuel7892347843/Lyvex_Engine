@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import core.ProjectManager;
 import core.component.Transform;
+import core.component.tilemap.Tilemap;
 import core.math.vector2D;
 import core.scriptutil.ScriptComponentRegistry;
 import core.component.sprite.SpriteLoader;
@@ -88,6 +89,24 @@ public class SceneSerializer {
             return data;
         }
 
+        if (component instanceof Tilemap tilemap) {
+            data.fields.put("width", tilemap.getWidth());
+            data.fields.put("height", tilemap.getHeight());
+            data.fields.put("tileSize", tilemap.getTileSize());
+            data.fields.put("tilesetPath", tilemap.getTilesetPath());
+
+            StringBuilder grid = new StringBuilder();
+            for (int y = 0; y < tilemap.getHeight(); y++) {
+                for (int x = 0; x < tilemap.getWidth(); x++) {
+                    grid.append(tilemap.getTile(x, y));
+                    if (x < tilemap.getWidth() - 1) grid.append(",");
+                }
+                if (y < tilemap.getHeight() - 1) grid.append(";");
+            }
+            data.fields.put("grid", grid.toString());
+            return data;
+        }
+
         Field[] fields = component.getClass().getDeclaredFields();
         for (Field field : fields) {
             try {
@@ -138,7 +157,6 @@ public class SceneSerializer {
             object.setId(data.id);
         }
 
-        // Trova il Transform nei dati caricati PRIMA di aggiungere componenti
         ComponentData transformData = null;
         if (data.components != null) {
             for (ComponentData cd : data.components) {
@@ -158,7 +176,6 @@ public class SceneSerializer {
             }
         }
 
-        // Se abbiamo caricato un Transform, assicurati che i valori siano applicati
         if (transformData != null && transformData.fields != null) {
             Map<String, Object> fields = transformData.fields;
             Transform t = object.getTransform();
@@ -252,6 +269,34 @@ public class SceneSerializer {
             return;
         }
 
+        if (component instanceof Tilemap tilemap) {
+            if (fields.containsKey("width") && fields.get("width") instanceof Number n) {
+                tilemap.setWidth(n.intValue());
+            }
+            if (fields.containsKey("height") && fields.get("height") instanceof Number n) {
+                tilemap.setHeight(n.intValue());
+            }
+            if (fields.containsKey("tileSize") && fields.get("tileSize") instanceof Number n) {
+                tilemap.setTileSize(n.intValue());
+            }
+            if (fields.containsKey("tilesetPath") && fields.get("tilesetPath") instanceof String s) {
+                tilemap.setTilesetPath(s);
+                tilemap.loadTileset();
+            }
+            if (fields.containsKey("grid") && fields.get("grid") instanceof String gridStr) {
+                String[] rows = gridStr.split(";");
+                for (int y = 0; y < rows.length && y < tilemap.getHeight(); y++) {
+                    String[] cols = rows[y].split(",");
+                    for (int x = 0; x < cols.length && x < tilemap.getWidth(); x++) {
+                        try {
+                            tilemap.setTile(x, y, Integer.parseInt(cols[x].trim()));
+                        } catch (NumberFormatException ignored) {}
+                    }
+                }
+            }
+            return;
+        }
+
         for (Map.Entry<String, Object> entry : fields.entrySet()) {
             try {
                 Field field = component.getClass().getDeclaredField(entry.getKey());
@@ -268,7 +313,6 @@ public class SceneSerializer {
                 } else if (type == String.class) {
                     field.set(component, value != null ? value.toString() : null);
                 }
-                // NOTA: Non gestiamo oggetti complessi qui!
             } catch (Exception ignored) {
             }
         }
