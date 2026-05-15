@@ -2,6 +2,8 @@ package ui.panels;
 
 import core.assetmanager.AssetManager;
 import core.gameobject.GameObject;
+import core.math.vector2D;
+import core.math.vector3f;
 import core.scriptutil.ScriptComponentRegistry;
 import core.component.sprite.SpriteLoader;
 import core.component.Component;
@@ -57,6 +59,13 @@ public class InspectorPanel implements EditorPanel {
         ImGui.text("Selected GameObject");
         ImGui.separator();
         ImGui.text("ID: " + selected.getId());
+
+        if(ImGui.button("Add GameObject Children")){
+            GameObject child = new GameObject("New Child", context);
+            context.getCurrentScene().addChildObject(context.getSelectedGameObject(), child);
+            context.setSelectedGameObject(child);
+            context.setSceneDirty(true);
+        }
 
         if(ImGui.button("Remove GameObject")){
             selected.destroy(context);
@@ -137,6 +146,39 @@ public class InspectorPanel implements EditorPanel {
                 String fieldName = field.getName();
                 Object value = field.get(component);
 
+                if(type == vector2D.class || type.getSimpleName().equals("vector2D")){
+                    vector2D vec = (vector2D) value;
+                    if (vec == null) {
+                        vec = new vector2D(0, 0);
+                        field.set(component, vec);
+                    }
+
+                    float[] v = { vec.x, vec.y };
+                    if (ImGui.dragFloat2(fieldName, v, 0.05f)) {
+                        vec.x = v[0];
+                        vec.y = v[1];
+                        context.setSceneDirty(true);
+                    }
+                    continue;
+                }
+
+                if(type == vector3f.class || type.getSimpleName().equals("vector3f")){
+                    vector3f vec = (vector3f) value;
+                    if(vec == null){
+                        vec = new vector3f(0, 0, 0);
+                        field.set(component, vec);
+                    }
+
+                    float[] v = {vec.x, vec.y, vec.z};
+                    if(ImGui.dragFloat3(fieldName, v, 0.05f)){
+                        vec.x = v[0];
+                        vec.y = v[1];
+                        vec.z = v[2];
+                        context.setSceneDirty(true);
+                    }
+                    continue;
+                }
+
                 if (type == float.class) {
                     float[] v = { field.getFloat(component) };
                     if (ImGui.dragFloat(fieldName, v, 0.05f)) {
@@ -163,6 +205,7 @@ public class InspectorPanel implements EditorPanel {
                     }
                 }
             } catch (Exception ignored) {
+                ignored.printStackTrace();
             }
         }
     }

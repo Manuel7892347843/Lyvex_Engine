@@ -165,43 +165,71 @@ public class Engine {
 
     private void awakeScene() {
         for (GameObject rootObject : currentScene.getRootObjects()) {
-            rootObject.getComponents().forEach(component -> {
-                if (!component.isAwoken()) {
-                    component.awake();
-                    component.setAwoken(true);
-                }
-            });
+            awakeGameObjectRecursive(rootObject);
+        }
+    }
+
+    private void awakeGameObjectRecursive(GameObject gameObject) {
+        for (Component component : gameObject.getComponents()) {
+            if (!component.isAwoken()) {
+                component.awake();
+                component.setAwoken(true);
+            }
+        }
+        for (GameObject child : gameObject.getChildren()) {
+            awakeGameObjectRecursive(child);
         }
     }
 
     private void startScene() {
         for (GameObject rootObject : currentScene.getRootObjects()) {
-            rootObject.getComponents().forEach(component -> {
-                if (component.isEnabled() && !component.isStarted()) {
-                    component.start();
-                    component.setStarted(true);
-                }
-            });
+            startGameObjectRecursive(rootObject);
+        }
+    }
+
+    private void startGameObjectRecursive(GameObject gameObject) {
+        for (Component component : gameObject.getComponents()) {
+            if (component.isEnabled() && !component.isStarted()) {
+                component.start();
+                component.setStarted(true);
+            }
+        }
+        for (GameObject child : gameObject.getChildren()) {
+            startGameObjectRecursive(child);
         }
     }
 
     private void updateScene() {
         for (GameObject rootObject : currentScene.getRootObjects()) {
-            rootObject.getComponents().forEach(component -> {
-                if (component.isEnabled()) {
-                    component.update();
-                }
-            });
+            updateGameObjectRecursive(rootObject);
+        }
+    }
+
+    private void updateGameObjectRecursive(GameObject gameObject) {
+        for (Component component : gameObject.getComponents()) {
+            if (component.isEnabled()) {
+                component.update();
+            }
+        }
+        for (GameObject child : gameObject.getChildren()) {
+            updateGameObjectRecursive(child);
         }
     }
 
     private void lateUpdateScene() {
         for (GameObject rootObject : currentScene.getRootObjects()) {
-            rootObject.getComponents().forEach(component -> {
-                if (component.isEnabled()) {
-                    component.lateUpdate();
-                }
-            });
+            lateUpdateGameObjectRecursive(rootObject);
+        }
+    }
+
+    private void lateUpdateGameObjectRecursive(GameObject gameObject) {
+        for (Component component : gameObject.getComponents()) {
+            if (component.isEnabled()) {
+                component.lateUpdate();
+            }
+        }
+        for (GameObject child : gameObject.getChildren()) {
+            lateUpdateGameObjectRecursive(child);
         }
     }
 

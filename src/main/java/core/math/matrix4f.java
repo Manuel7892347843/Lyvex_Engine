@@ -55,9 +55,7 @@ public class matrix4f {
     }
 
     public matrix4f rotateXYZ(float rx, float ry, float rz) {
-        // Semplificato: applica ZYX (ordine comune per 2D/3D)
         rotateZ(rz);
-        // Per rotazione completa XYZ servirebbe implementare rotateX e rotateY
         return this;
     }
 

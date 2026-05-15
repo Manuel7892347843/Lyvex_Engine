@@ -3,6 +3,8 @@ package core.scene;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import core.ProjectManager;
+import core.component.Transform;
+import core.math.vector2D;
 import core.scriptutil.ScriptComponentRegistry;
 import core.component.sprite.SpriteLoader;
 import core.assetmanager.AssetManager;
@@ -77,6 +79,15 @@ public class SceneSerializer {
 
         data.type = component.getClass().getName();
 
+        if (component instanceof Transform transform) {
+            data.fields.put("x", transform.getX());
+            data.fields.put("y", transform.getY());
+            data.fields.put("rotation", transform.getRotation());
+            data.fields.put("scaleX", transform.getScale().x);
+            data.fields.put("scaleY", transform.getScale().y);
+            return data;
+        }
+
         Field[] fields = component.getClass().getDeclaredFields();
         for (Field field : fields) {
             try {
@@ -87,12 +98,25 @@ public class SceneSerializer {
                     continue;
                 }
 
+                if (value != null && !isPrimitiveOrWrapper(value.getClass())) {
+                    continue;
+                }
+
                 data.fields.put(field.getName(), value);
             } catch (IllegalAccessException ignored) {
             }
         }
 
         return data;
+    }
+
+    private static boolean isPrimitiveOrWrapper(Class<?> type) {
+        return type.isPrimitive() ||
+                type == String.class ||
+                type == Float.class || type == Double.class ||
+                type == Integer.class || type == Long.class ||
+                type == Short.class || type == Byte.class ||
+                type == Boolean.class || type == Character.class;
     }
 
     private static Scene fromData(SceneData data) {
@@ -114,12 +138,46 @@ public class SceneSerializer {
             object.setId(data.id);
         }
 
+        // Trova il Transform nei dati caricati PRIMA di aggiungere componenti
+        ComponentData transformData = null;
+        if (data.components != null) {
+            for (ComponentData cd : data.components) {
+                if ("core.component.Transform".equals(cd.type)) {
+                    transformData = cd;
+                    break;
+                }
+            }
+        }
+
         if (data.components != null) {
             for (ComponentData componentData : data.components) {
                 Component component = fromComponentData(componentData);
                 if (component != null) {
                     object.addComponent(component);
                 }
+            }
+        }
+
+        // Se abbiamo caricato un Transform, assicurati che i valori siano applicati
+        if (transformData != null && transformData.fields != null) {
+            Map<String, Object> fields = transformData.fields;
+            Transform t = object.getTransform();
+            if (fields.containsKey("x") && fields.get("x") instanceof Number n) {
+                t.setPosition(n.floatValue(), t.getY());
+            }
+            if (fields.containsKey("y") && fields.get("y") instanceof Number n) {
+                t.setPosition(t.getX(), n.floatValue());
+            }
+            if (fields.containsKey("rotation") && fields.get("rotation") instanceof Number n) {
+                t.setRotation(n.floatValue());
+            }
+            if (fields.containsKey("scaleX") && fields.get("scaleX") instanceof Number n) {
+                vector2D currentScale = t.getScale();
+                t.setScale(n.floatValue(), currentScale.y);
+            }
+            if (fields.containsKey("scaleY") && fields.get("scaleY") instanceof Number n) {
+                vector2D currentScale = t.getScale();
+                t.setScale(currentScale.x, n.floatValue());
             }
         }
 
@@ -173,6 +231,27 @@ public class SceneSerializer {
     }
 
     private static void applyFields(Component component, Map<String, Object> fields) {
+        if (component instanceof Transform transform) {
+            if (fields.containsKey("x") && fields.get("x") instanceof Number n) {
+                transform.setPosition(n.floatValue(), transform.getY());
+            }
+            if (fields.containsKey("y") && fields.get("y") instanceof Number n) {
+                transform.setPosition(transform.getX(), n.floatValue());
+            }
+            if (fields.containsKey("rotation") && fields.get("rotation") instanceof Number n) {
+                transform.setRotation(n.floatValue());
+            }
+            if (fields.containsKey("scaleX") && fields.get("scaleX") instanceof Number n) {
+                vector2D currentScale = transform.getScale();
+                transform.setScale(n.floatValue(), currentScale.y);
+            }
+            if (fields.containsKey("scaleY") && fields.get("scaleY") instanceof Number n) {
+                vector2D currentScale = transform.getScale();
+                transform.setScale(currentScale.x, n.floatValue());
+            }
+            return;
+        }
+
         for (Map.Entry<String, Object> entry : fields.entrySet()) {
             try {
                 Field field = component.getClass().getDeclaredField(entry.getKey());
@@ -189,6 +268,7 @@ public class SceneSerializer {
                 } else if (type == String.class) {
                     field.set(component, value != null ? value.toString() : null);
                 }
+                // NOTA: Non gestiamo oggetti complessi qui!
             } catch (Exception ignored) {
             }
         }

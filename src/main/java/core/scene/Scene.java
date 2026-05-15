@@ -30,6 +30,12 @@ public class Scene {
         return Collections.unmodifiableList(rootObjects);
     }
 
+    public void addChildObject(GameObject parent, GameObject object) {
+        if (parent != null && object != null && !rootObjects.contains(object)) {
+            parent.addChild(object);
+        }
+    }
+
     public void addRootObject(GameObject object) {
         if (object != null && !rootObjects.contains(object)) {
             rootObjects.add(object);

@@ -8,7 +8,6 @@ public class Transform extends Component {
     private float rotation = 0.0f;
     private vector2D scale = new vector2D(1.0f, 1.0f);
 
-    // transient = non serializzato, ricreato al volo
     private transient matrix4f modelMatrix = new matrix4f();
 
     public Transform() {}

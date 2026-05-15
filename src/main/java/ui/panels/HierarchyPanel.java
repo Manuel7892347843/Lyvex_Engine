@@ -47,17 +47,6 @@ public class HierarchyPanel implements EditorPanel {
                 }
             }
 
-            if (ImGui.menuItem("Save Scene")) {
-                if (context.getEngine() == null) {
-                    ImGui.endPopup();
-                    ImGui.end();
-                    throw new IllegalStateException("Engine is null in EditorContext");
-                }
-
-                context.getEngine().saveCurrentScenePublic();
-                context.setSceneDirty(false);
-            }
-
             ImGui.endPopup();
         }
 
@@ -66,11 +55,18 @@ public class HierarchyPanel implements EditorPanel {
 
     private void drawGameObjectNode(GameObject gameObject, EditorContext context) {
         int flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanAvailWidth;
+
         if (gameObject.getChildren().isEmpty()) {
             flags |= ImGuiTreeNodeFlags.Leaf;
         }
 
-        boolean opened = ImGui.treeNodeEx(gameObject.getId(), flags, gameObject.getName());
+        if (context.getSelectedGameObject() == gameObject) {
+            flags |= ImGuiTreeNodeFlags.Selected;
+        }
+
+        ImGui.pushID(gameObject.getId());
+        boolean opened = ImGui.treeNodeEx(gameObject.getName(), flags, gameObject.getName());
+        ImGui.popID();
 
         if (ImGui.isItemClicked()) {
             context.setSelectedGameObject(gameObject);

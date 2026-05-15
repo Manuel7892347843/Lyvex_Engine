@@ -70,8 +70,12 @@ public class GameObject {
             return;
         }
 
-        if (component instanceof Transform) {
-            if (!components.contains(transform)) {
+        if (component instanceof Transform newTransform) {
+            if (components.contains(transform)) {
+                this.transform.setPosition(newTransform.getX(), newTransform.getY());
+                this.transform.setRotation(newTransform.getRotation());
+                this.transform.setScale(newTransform.getScale().x, newTransform.getScale().y);
+            } else {
                 components.add(transform);
             }
             transform.setGameObject(this);
@@ -111,12 +115,20 @@ public class GameObject {
             return;
         }
 
+        // Se era un root object, rimuovilo dalla scena
+        if (child.parent == null && context != null && context.getCurrentScene() != null) {
+            context.getCurrentScene().removeRootObject(child);
+        }
+
+        // Stacca dal parent precedente
         if (child.parent != null) {
             child.parent.children.remove(child);
         }
 
         child.parent = this;
-        children.add(child);
+        if (!children.contains(child)) {
+            children.add(child);
+        }
     }
 
     public void removeChild(GameObject child) {
@@ -126,6 +138,9 @@ public class GameObject {
 
         if (children.remove(child)) {
             child.parent = null;
+            if (context != null && context.getCurrentScene() != null) {
+                context.getCurrentScene().addRootObject(child);
+            }
         }
     }
 

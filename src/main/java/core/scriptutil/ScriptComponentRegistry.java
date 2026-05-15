@@ -27,6 +27,7 @@ public class ScriptComponentRegistry {
         COMPONENT_CLASSES.add(Transform.class);
         COMPONENT_CLASSES.add(SpriteComponent.class);
         COMPONENT_CLASSES.add(RigidBody2D.class);
+        COMPONENT_CLASSES.add(ParentFollower.class);
 
         Path scriptsRoot = ProjectManager.getScriptsPath();
         if (scriptsRoot == null || !Files.exists(scriptsRoot)) {
