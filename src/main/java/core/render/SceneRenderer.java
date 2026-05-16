@@ -1,6 +1,7 @@
 package core.render;
 
 import core.Engine;
+import core.ProjectSettings;
 import core.component.Camera;
 import core.component.EditorCamera2D;
 import core.component.sprite.Sprite;
@@ -12,6 +13,8 @@ import core.math.matrix4f;
 import core.scene.Scene;
 import ui.EditorContext;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.lwjgl.glfw.GLFW.*;
@@ -83,6 +86,15 @@ public class SceneRenderer {
         }
     }
 
+    private static class Renderable {
+        GameObject gameObject;
+        SpriteComponent sprite;
+        Tilemap tilemap;
+        float worldY;
+        int layerPriority;
+        int sortingOrder;
+    }
+
     public void render() {
         glDisable(GL_DEPTH_TEST);
         glEnable(GL_BLEND);
@@ -97,7 +109,6 @@ public class SceneRenderer {
         glUseProgram(shaderProgram);
 
         matrix4f viewProj;
-
         if (useSceneCamera) {
             Camera sceneCamera = findPrimaryCamera();
             if (sceneCamera != null) {
@@ -118,13 +129,63 @@ public class SceneRenderer {
 
         int modelLocation = glGetUniformLocation(shaderProgram, "uModel");
 
-        glBindVertexArray(vao);
+        List<Renderable> renderables = new ArrayList<>();
         for (GameObject root : scene.getRootObjects()) {
-            renderGameObjectRecursive(root, modelLocation);
+            collectRenderables(root, renderables);
         }
-        glBindVertexArray(0);
 
+        renderables.sort((a, b) -> {
+            if (a.layerPriority != b.layerPriority) {
+                return Integer.compare(a.layerPriority, b.layerPriority);
+            }
+            return Integer.compare(a.sortingOrder, b.sortingOrder);
+        });
+
+        glBindVertexArray(vao);
+
+        for (Renderable r : renderables) {
+            if (r.sprite != null) {
+                renderSprite(r.gameObject, r.sprite, modelLocation);
+            } else if (r.tilemap != null) {
+                renderTilemap(r.tilemap, modelLocation);
+            }
+        }
+
+        glBindVertexArray(0);
         glUseProgram(0);
+    }
+
+    private void collectRenderables(GameObject gameObject, List<Renderable> list) {
+        if (!gameObject.isActive()) return;
+
+        SpriteComponent sprite = gameObject.getComponent(SpriteComponent.class);
+        if (sprite != null && sprite.getSprite() != null) {
+            Renderable r = new Renderable();
+            r.gameObject = gameObject;
+            r.sprite = sprite;
+            r.worldY = gameObject.getTransform().getY();
+            r.layerPriority = getLayerPriority(sprite.getSortingLayer());
+            r.sortingOrder = sprite.getSortingOrder();
+            list.add(r);
+        }
+
+        Tilemap tilemap = gameObject.getComponent(Tilemap.class);
+        if (tilemap != null && tilemap.getTilesetSprite() != null) {
+            Renderable r = new Renderable();
+            r.gameObject = gameObject;
+            r.tilemap = tilemap;
+            r.layerPriority = getLayerPriority(tilemap.getSortingLayer());
+            r.sortingOrder = tilemap.getSortingOrder();
+            list.add(r);
+        }
+
+        for (GameObject child : gameObject.getChildren()) {
+            collectRenderables(child, list);
+        }
+    }
+
+    private int getLayerPriority(String layerName) {
+        return ProjectSettings.getSortingLayerManager().getLayerPriority(layerName);
     }
 
     private Camera findPrimaryCamera() {
@@ -198,6 +259,26 @@ public class SceneRenderer {
         }
     }
 
+    private void renderSprite(GameObject gameObject, SpriteComponent spriteComponent, int modelLocation) {
+        if (spriteComponent == null || spriteComponent.getSprite() == null) return;
+
+        matrix4f model = gameObject.getTransform().getModelMatrix();
+        if (modelLocation != -1) {
+            float[] modelArray = new float[16];
+            model.get(modelArray);
+            glUniformMatrix4fv(modelLocation, false, modelArray);
+        }
+
+        int uvOffsetLoc = glGetUniformLocation(shaderProgram, "uUVOffset");
+        int uvScaleLoc = glGetUniformLocation(shaderProgram, "uUVScale");
+        if (uvOffsetLoc != -1) glUniform2f(uvOffsetLoc, 0, 0);
+        if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1, 1);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, spriteComponent.getSprite().getTextureId());
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
+
     private void renderTilemap(Tilemap tilemap, int modelLocation) {
         Sprite tileset = tilemap.getTilesetSprite();
         if (tileset == null) return;
@@ -215,7 +296,6 @@ public class SceneRenderer {
 
         matrix4f modelMatrix = new matrix4f();
 
-        // Itera solo sulle tile esistenti
         for (Map.Entry<String, Integer> entry : tilemap.getTiles().entrySet()) {
             String[] parts = entry.getKey().split(",");
             int x = Integer.parseInt(parts[0]);
@@ -224,7 +304,6 @@ public class SceneRenderer {
 
             if (tileId <= 0) continue;
 
-            // Calcola UV
             int tileX = (tileId - 1) % tilesPerRow;
             int tileY = (tileId - 1) / tilesPerRow;
 
@@ -240,7 +319,6 @@ public class SceneRenderer {
             float worldX = x * worldScale;
             float worldY = y * worldScale;
 
-            // Posizione world
             modelMatrix.identity()
                     .translate(worldX, worldY, 0)
                     .scale(worldScale, worldScale, 1);
@@ -256,7 +334,6 @@ public class SceneRenderer {
             glDrawArrays(GL_TRIANGLES, 0, 6);
         }
 
-        // Reset UV
         if (uvOffsetLoc != -1) glUniform2f(uvOffsetLoc, 0, 0);
         if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1, 1);
     }

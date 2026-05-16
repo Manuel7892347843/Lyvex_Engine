@@ -124,6 +124,20 @@ public class InspectorPanel implements EditorPanel {
 
             if (component instanceof SpriteComponent spriteComponent) {
                 drawSpriteField(spriteComponent, context);
+
+                ImGui.text("Sorting");
+
+                ImString layer = new ImString(spriteComponent.getSortingLayer(), 64);
+                if (ImGui.inputText("Sorting Layer", layer)) {
+                    spriteComponent.setSortingLayer(layer.get());
+                    context.setSceneDirty(true);
+                }
+
+                int[] order = { spriteComponent.getSortingOrder() };
+                if (ImGui.dragInt("Order in Layer", order, 1)) {
+                    spriteComponent.setSortingOrder(order[0]);
+                    context.setSceneDirty(true);
+                }
             }
 
             if (component instanceof Transform transform) {
@@ -313,17 +327,28 @@ public class InspectorPanel implements EditorPanel {
         ImGui.separator();
         ImGui.text("Tilemap");
 
-        // Solo Tile Size (non più width/height)
         int[] tileSize = { tilemap.getTileSize() };
         if (ImGui.dragInt("Tile Size", tileSize, 1, 8, 256)) {
             tilemap.setTileSize(tileSize[0]);
             context.setSceneDirty(true);
         }
 
-        // Info tile count
+        ImGui.text("Sorting");
+
+        ImString layer = new ImString(tilemap.getSortingLayer(), 64);
+        if (ImGui.inputText("Sorting Layer", layer)) {
+            tilemap.setSortingLayer(layer.get());
+            context.setSceneDirty(true);
+        }
+
+        int[] order = { tilemap.getSortingOrder() };
+        if (ImGui.dragInt("Order in Layer", order, 1)) {
+            tilemap.setSortingOrder(order[0]);
+            context.setSceneDirty(true);
+        }
+
         ImGui.text("Tiles placed: " + tilemap.getTiles().size());
 
-        // Tileset picker
         ImString tilesetPath = new ImString(tilemap.getTilesetPath() != null ? tilemap.getTilesetPath() : "", 256);
         if (ImGui.inputText("Tileset Path", tilesetPath)) {
             tilemap.setTilesetPath(tilesetPath.get());
@@ -335,7 +360,6 @@ public class InspectorPanel implements EditorPanel {
             ImGui.openPopup("TilesetPickerPopup");
         }
 
-        // Popup tileset
         if (ImGui.beginPopup("TilesetPickerPopup")) {
             Path assetsRoot = AssetManager.getAssetPath();
             try (Stream<Path> paths = Files.walk(assetsRoot)) {
@@ -359,7 +383,6 @@ public class InspectorPanel implements EditorPanel {
             ImGui.endPopup();
         }
 
-        // Bottone per aprire l'editor dedicato
         if (ImGui.button("Open Tilemap Editor", 200, 30)) {
             tilemapEditorOpen.set(true);
             editingTilemap = tilemap;
@@ -379,7 +402,6 @@ public class InspectorPanel implements EditorPanel {
 
         Tilemap tilemap = editingTilemap;
 
-        // === MENU BAR ===
         if (ImGui.beginMenuBar()) {
             if (ImGui.beginMenu("Tools")) {
                 if (ImGui.menuItem("Clear All")) {
@@ -393,7 +415,6 @@ public class InspectorPanel implements EditorPanel {
 
         float paletteWidth = 150;
 
-        // PALETTE (sinistra)
         ImGui.beginChild("Palette", paletteWidth, 0, true);
         ImGui.text("Palette");
         ImGui.separator();
@@ -460,37 +481,30 @@ public class InspectorPanel implements EditorPanel {
 
         ImGui.sameLine();
 
-        // === VIEWPORT DI DISEGNO (destra) ===
         ImGui.beginChild("Canvas", 0, 0, true);
 
-        // Ottieni la posizione del mouse nel canvas
         ImVec2 canvasPos = ImGui.getCursorScreenPos();
         ImVec2 mousePos = ImGui.getMousePos();
         vector2f relMouse = new vector2f(mousePos.x - canvasPos.x, mousePos.y - canvasPos.y);
 
         int tileSize = tilemap.getTileSize();
 
-        // Calcola quale tile è sotto il mouse
         int hoverX = (int)(relMouse.x / tileSize);
         int hoverY = (int)(relMouse.y / tileSize);
 
-        // Offset per centrare la vista (opzionale)
         float offsetX = 0;
         float offsetY = 0;
 
-        // Disegna la griglia di sfondo
         ImVec2 canvasSize = ImGui.getContentRegionAvail();
         int colsVisible = (int)(canvasSize.x / tileSize) + 2;
         int rowsVisible = (int)(canvasSize.y / tileSize) + 2;
 
-        // Calcola range visibile
         int startCol = (int)(-offsetX / tileSize);
         int startRow = (int)(-offsetY / tileSize);
 
         boolean mouseDown = ImGui.isMouseDown(0);
         boolean mouseClicked = ImGui.isMouseClicked(0);
 
-        // Disegna le tile esistenti
         if (tilemap.getTilesetSprite() != null) {
             int texId = tilemap.getTilesetSprite().getTextureId();
             float texWidth = tilemap.getTilesetSprite().getWidth();
@@ -505,11 +519,9 @@ public class InspectorPanel implements EditorPanel {
 
                 if (tileId <= 0) continue;
 
-                // Posizione sullo schermo
                 float screenX = canvasPos.x + tx * tileSize + offsetX;
                 float screenY = canvasPos.y + ty * tileSize + offsetY;
 
-                // Calcola UV
                 int tileX = (tileId - 1) % tilesPerRow;
                 int tileY = (tileId - 1) / tilesPerRow;
 
@@ -518,7 +530,6 @@ public class InspectorPanel implements EditorPanel {
                 float u2 = ((tileX + 1) * tileSize) / texWidth;
                 float v2 = ((tileY + 1) * tileSize) / texHeight;
 
-                // Disegna il tile
                 ImGui.getWindowDrawList().addImage(
                         texId,
                         screenX, screenY,
@@ -528,41 +539,35 @@ public class InspectorPanel implements EditorPanel {
             }
         }
 
-        // Disegna la griglia
         for (int row = startRow; row < startRow + rowsVisible; row++) {
             for (int col = startCol; col < startCol + colsVisible; col++) {
                 float x = canvasPos.x + col * tileSize + offsetX;
                 float y = canvasPos.y + row * tileSize + offsetY;
 
-                // Linee della griglia
                 ImGui.getWindowDrawList().addRect(
                         x, y, x + tileSize, y + tileSize,
-                        0x40FFFFFF // colore semi-trasparente
+                        0x40FFFFFF // semi-transparent
                 );
             }
         }
 
-        // Disegna il cursore (hover)
         if (hoverX >= startCol && hoverX < startCol + colsVisible &&
                 hoverY >= startRow && hoverY < startRow + rowsVisible) {
 
             float hx = canvasPos.x + hoverX * tileSize + offsetX;
             float hy = canvasPos.y + hoverY * tileSize + offsetY;
 
-            // Highlight della cella sotto il mouse
             ImGui.getWindowDrawList().addRectFilled(
                     hx, hy, hx + tileSize, hy + tileSize,
-                    0x40FF0000 // rosso semi-trasparente
+                    0x40FF0000 // semi-transparent red
             );
         }
 
-        // Input: click per disegnare
         if (ImGui.isWindowHovered() && (mouseClicked || (mouseDown && ImGui.isMouseDragging(0)))) {
             tilemap.setTile(hoverX, hoverY, selectedTileId);
             context.setSceneDirty(true);
         }
 
-        // Info
         ImGui.text("Hover: " + hoverX + ", " + hoverY);
         ImGui.text("Tiles: " + tilemap.getTiles().size());
 

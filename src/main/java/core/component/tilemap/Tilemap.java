@@ -17,6 +17,8 @@ public class Tilemap extends Component {
     private Map<String, Integer> tiles = new HashMap<>();
 
     private transient int minX = 0, minY = 0, maxX = 0, maxY = 0;
+    private String sortingLayer = "Default";
+    private int sortingOrder = 0;
 
     // Cache
     private transient Sprite tilesetSprite;
@@ -132,4 +134,8 @@ public class Tilemap extends Component {
     public int getTilesPerRow() { return tilesPerRow; }
     public float getPixelsPerUnit() { return pixelsPerUnit; }
     public void setPixelsPerUnit(float ppu) { this.pixelsPerUnit = ppu; }
+    public String getSortingLayer() { return sortingLayer; }
+    public void setSortingLayer(String sortingLayer) { this.sortingLayer = sortingLayer; }
+    public int getSortingOrder() { return sortingOrder; }
+    public void setSortingOrder(int sortingOrder) { this.sortingOrder = sortingOrder; }
 }

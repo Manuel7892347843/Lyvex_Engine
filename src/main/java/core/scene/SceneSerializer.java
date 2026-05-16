@@ -89,21 +89,26 @@ public class SceneSerializer {
             return data;
         }
 
-        if (component instanceof Tilemap tilemap) {
-            data.fields.put("width", tilemap.getWidth());
-            data.fields.put("height", tilemap.getHeight());
-            data.fields.put("tileSize", tilemap.getTileSize());
-            data.fields.put("tilesetPath", tilemap.getTilesetPath());
+        if (component instanceof SpriteComponent sc) {
+            data.fields.put("spriteAssetPath", sc.getSpriteAssetPath());
+            data.fields.put("sortingLayer", sc.getSortingLayer());
+            data.fields.put("sortingOrder", sc.getSortingOrder());
+            return data;
+        }
 
-            StringBuilder grid = new StringBuilder();
-            for (int y = 0; y < tilemap.getHeight(); y++) {
-                for (int x = 0; x < tilemap.getWidth(); x++) {
-                    grid.append(tilemap.getTile(x, y));
-                    if (x < tilemap.getWidth() - 1) grid.append(",");
-                }
-                if (y < tilemap.getHeight() - 1) grid.append(";");
+        if (component instanceof Tilemap tilemap) {
+            data.fields.put("tileSize", tilemap.getTileSize());
+            data.fields.put("pixelsPerUnit", tilemap.getPixelsPerUnit());
+            data.fields.put("tilesetPath", tilemap.getTilesetPath());
+            data.fields.put("sortingLayer", tilemap.getSortingLayer());
+            data.fields.put("sortingOrder", tilemap.getSortingOrder());
+
+            StringBuilder sb = new StringBuilder();
+            for (Map.Entry<String, Integer> entry : tilemap.getTiles().entrySet()) {
+                if (sb.length() > 0) sb.append(";");
+                sb.append(entry.getKey()).append(":").append(entry.getValue());
             }
-            data.fields.put("grid", grid.toString());
+            data.fields.put("tiles", sb.toString());
             return data;
         }
 
@@ -269,29 +274,55 @@ public class SceneSerializer {
             return;
         }
 
+        if (component instanceof SpriteComponent sc) {
+            if (fields.containsKey("spriteAssetPath") && fields.get("spriteAssetPath") instanceof String s) {
+                sc.setSpriteAssetPath(s);
+                if (s != null && !s.isBlank()) {
+                    try {
+                        Path realPath = AssetManager.getAssetPath().resolve(s);
+                        Sprite sprite = SpriteLoader.loadFromFile(realPath);
+                        sc.setSprite(sprite);
+                    } catch (Exception e) {
+                        System.err.println("Failed to reload sprite: " + s);
+                    }
+                }
+            }
+            if (fields.containsKey("sortingLayer") && fields.get("sortingLayer") instanceof String s) {
+                sc.setSortingLayer(s);
+            }
+            if (fields.containsKey("sortingOrder") && fields.get("sortingOrder") instanceof Number n) {
+                sc.setSortingOrder(n.intValue());
+            }
+            return;
+        }
+
         if (component instanceof Tilemap tilemap) {
-            if (fields.containsKey("width") && fields.get("width") instanceof Number n) {
-                tilemap.setWidth(n.intValue());
-            }
-            if (fields.containsKey("height") && fields.get("height") instanceof Number n) {
-                tilemap.setHeight(n.intValue());
-            }
             if (fields.containsKey("tileSize") && fields.get("tileSize") instanceof Number n) {
                 tilemap.setTileSize(n.intValue());
+            }
+            if (fields.containsKey("pixelsPerUnit") && fields.get("pixelsPerUnit") instanceof Number n) {
+                tilemap.setPixelsPerUnit(n.floatValue());
             }
             if (fields.containsKey("tilesetPath") && fields.get("tilesetPath") instanceof String s) {
                 tilemap.setTilesetPath(s);
                 tilemap.loadTileset();
             }
-            if (fields.containsKey("grid") && fields.get("grid") instanceof String gridStr) {
-                String[] rows = gridStr.split(";");
-                for (int y = 0; y < rows.length && y < tilemap.getHeight(); y++) {
-                    String[] cols = rows[y].split(",");
-                    for (int x = 0; x < cols.length && x < tilemap.getWidth(); x++) {
-                        try {
-                            tilemap.setTile(x, y, Integer.parseInt(cols[x].trim()));
-                        } catch (NumberFormatException ignored) {}
-                    }
+            if (fields.containsKey("sortingLayer") && fields.get("sortingLayer") instanceof String s) {
+                tilemap.setSortingLayer(s);
+            }
+            if (fields.containsKey("sortingOrder") && fields.get("sortingOrder") instanceof Number n) {
+                tilemap.setSortingOrder(n.intValue());
+            }
+            if (fields.containsKey("tiles") && fields.get("tiles") instanceof String tilesStr) {
+                String[] entries = tilesStr.split(";");
+                for (String entry : entries) {
+                    if (entry.isBlank()) continue;
+                    String[] kv = entry.split(":");
+                    String[] xy = kv[0].split(",");
+                    int x = Integer.parseInt(xy[0]);
+                    int y = Integer.parseInt(xy[1]);
+                    int id = Integer.parseInt(kv[1]);
+                    tilemap.setTile(x, y, id);
                 }
             }
             return;
