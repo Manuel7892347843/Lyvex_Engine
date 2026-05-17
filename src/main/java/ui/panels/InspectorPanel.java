@@ -41,6 +41,12 @@ public class InspectorPanel implements EditorPanel {
     private SpriteComponent spritePickerTarget;
     private Tilemap editingTilemap = null;
     private int selectedTileId = 1;
+    private float paletteZoom = 1.0f;
+    private float palettePanX = 0.0f;
+    private float palettePanY = 0.0f;
+    private boolean paletteIsPanning = false;
+    private float paletteLastMouseX = 0.0f;
+    private float paletteLastMouseY = 0.0f;
     private ImBoolean tilemapEditorOpen = new ImBoolean(false);
 
     @Override
@@ -391,7 +397,6 @@ public class InspectorPanel implements EditorPanel {
 
     private void drawTilemapEditorWindow(EditorContext context) {
         ImGui.setNextWindowSize(800, 600, ImGuiCond.FirstUseEver);
-
         ImGui.begin("Tilemap Editor", tilemapEditorOpen, ImGuiWindowFlags.MenuBar);
 
         if (!tilemapEditorOpen.get()) {
@@ -413,156 +418,189 @@ public class InspectorPanel implements EditorPanel {
             ImGui.endMenuBar();
         }
 
-        float paletteWidth = 150;
+        float paletteWidth = 350;
 
-        ImGui.beginChild("Palette", paletteWidth, 0, true);
+        // === CONTROLLI ZOOM (fuori dalla child, sempre visibili) ===
+        // Calcola la posizione assoluta per i controlli zoom
+        ImVec2 windowPos = ImGui.getWindowPos();
+        float controlsY = ImGui.getCursorPosY();
+
+        // Disegna i controlli zoom nella finestra padre (non in una child)
         ImGui.text("Palette");
+        ImGui.sameLine();
+        if (ImGui.button("-", 24, 24)) {
+            paletteZoom = Math.max(0.25f, paletteZoom - 0.25f);
+        }
+        ImGui.sameLine();
+        ImGui.text(String.format("%.0f%%", paletteZoom * 100));
+        ImGui.sameLine();
+        if (ImGui.button("+", 24, 24)) {
+            paletteZoom = Math.min(4.0f, paletteZoom + 0.25f);
+        }
+        ImGui.sameLine();
+        if (ImGui.button("Reset", 50, 24)) {
+            paletteZoom = 1.0f;
+        }
         ImGui.separator();
 
-        if (tilemap.getTilesetSprite() != null) {
-            int tilesPerRow = tilemap.getTilesPerRow();
-            int tilesPerCol = tilemap.getTilesetSprite().getHeight() / tilemap.getTileSize();
-            int totalTiles = tilesPerRow * tilesPerCol;
-            int paletteTileSize = 40;
+        // === PALETTE (child scrollabile, sotto i controlli) ===
+        // Calcola l'altezza disponibile per la palette
+        float controlsHeight = ImGui.getCursorPosY() - controlsY;
+        float availableHeight = ImGui.getContentRegionAvail().y;
 
+        ImGui.beginChild("Palette", paletteWidth, availableHeight, true, ImGuiWindowFlags.HorizontalScrollbar);
+
+        if (tilemap.getTilesetSprite() != null) {
             int texId = tilemap.getTilesetSprite().getTextureId();
             float texWidth = tilemap.getTilesetSprite().getWidth();
             float texHeight = tilemap.getTilesetSprite().getHeight();
             float tileSize = tilemap.getTileSize();
 
-            for (int i = 0; i <= totalTiles; i++) {
+            int tilesPerRow = (int)(texWidth / tileSize);
+            int tilesPerCol = (int)(texHeight / tileSize);
+            int totalTiles = tilesPerRow * tilesPerCol;
+            int basePaletteTileSize = 48;
+            int pSize = (int)(basePaletteTileSize * paletteZoom);
+
+            // --- ERASER ---
+            ImGui.pushID("palette_eraser");
+            boolean sel = (selectedTileId == 0);
+            if (sel) {
+                ImGui.pushStyleColor(ImGuiCol.Button, 0.2f, 0.6f, 1.0f, 1.0f);
+                ImGui.pushStyleColor(ImGuiCol.ButtonHovered, 0.3f, 0.7f, 1.0f, 1.0f);
+                ImGui.pushStyleColor(ImGuiCol.ButtonActive, 0.2f, 0.6f, 1.0f, 1.0f);
+            }
+            if (ImGui.button("Er", pSize, pSize)) {
+                selectedTileId = 0;
+            }
+            if (sel) ImGui.popStyleColor(3);
+            ImGui.popID();
+
+            // --- TILE GRID ---
+            for (int i = 1; i <= totalTiles; i++) {
                 ImGui.pushID("palette_" + i);
+                boolean isSel = (selectedTileId == i);
 
-                boolean isSelected = (selectedTileId == i);
-                boolean clicked;
-
-                if (i == 0) {
-                    if (isSelected) {
-                        ImGui.pushStyleColor(ImGuiCol.Button, 1.0f, 0.3f, 0.3f, 1.0f);
-                    }
-                    clicked = ImGui.button("Er", paletteTileSize, paletteTileSize);
-                    if (isSelected) {
-                        ImGui.popStyleColor();
-                    }
-                } else {
-                    int tileX = (i - 1) % tilesPerRow;
-                    int tileY = (i - 1) / tilesPerRow;
-
-                    float u1 = (tileX * tileSize) / texWidth;
-                    float v1 = (tileY * tileSize) / texHeight;
-                    float u2 = ((tileX + 1) * tileSize) / texWidth;
-                    float v2 = ((tileY + 1) * tileSize) / texHeight;
-
-                    clicked = ImGui.imageButton(texId, paletteTileSize, paletteTileSize, u1, v1, u2, v2);
+                if (i > 1 && (i - 1) % tilesPerRow != 0) {
+                    ImGui.sameLine(0, 2);
                 }
 
-                if (clicked) {
-                    selectedTileId = i;
+                if (isSel) {
+                    ImGui.pushStyleColor(ImGuiCol.Button, 0.2f, 0.6f, 1.0f, 1.0f);
+                    ImGui.pushStyleColor(ImGuiCol.ButtonHovered, 0.3f, 0.7f, 1.0f, 1.0f);
+                    ImGui.pushStyleColor(ImGuiCol.ButtonActive, 0.2f, 0.6f, 1.0f, 1.0f);
                 }
+
+                int tileX = (i - 1) % tilesPerRow;
+                int tileY = (i - 1) / tilesPerRow;
+
+                // UV SENZA flip (coerente con Canvas)
+                float u1 = (tileX * tileSize) / texWidth;
+                float v1 = (tileY * tileSize) / texHeight;
+                float u2 = ((tileX + 1) * tileSize) / texWidth;
+                float v2 = ((tileY + 1) * tileSize) / texHeight;
+
+                boolean clicked = ImGui.imageButton(texId, pSize, pSize, u1, v1, u2, v2);
+
+                if (ImGui.isItemHovered()) {
+                    ImGui.setTooltip("Tile " + i);
+                }
+
+                if (isSel) ImGui.popStyleColor(3);
+                if (clicked) selectedTileId = i;
 
                 ImGui.popID();
-
-                if ((i + 1) % 3 != 0 && i < totalTiles) {
-                    ImGui.sameLine();
-                }
             }
+
+            ImGui.separator();
+            if (selectedTileId == 0) {
+                ImGui.textColored(1.0f, 0.3f, 0.3f, 1.0f, "Tool: Eraser");
+            } else {
+                int selCol = (selectedTileId - 1) % tilesPerRow;
+                int selRow = (selectedTileId - 1) / tilesPerRow;
+                ImGui.text("Selected: Tile " + selectedTileId + " (col " + selCol + ", row " + selRow + ")");
+            }
+
         } else {
             ImGui.text("No tileset loaded!");
         }
 
-        ImGui.separator();
-        if (selectedTileId == 0) {
-            ImGui.text("Tool: Eraser");
-        } else {
-            ImGui.text("Selected: Tile " + selectedTileId);
-        }
-
-        ImGui.endChild();
-
+        ImGui.endChild(); // Fine Palette
         ImGui.sameLine();
 
-        ImGui.beginChild("Canvas", 0, 0, true);
+        // ==================== CANVAS ====================
+        // Il canvas deve occupare lo spazio rimanente in altezza
+        float canvasHeight = ImGui.getContentRegionAvail().y;
+        ImGui.beginChild("Canvas", 0, canvasHeight, true);
 
         ImVec2 canvasPos = ImGui.getCursorScreenPos();
         ImVec2 mousePos = ImGui.getMousePos();
         vector2f relMouse = new vector2f(mousePos.x - canvasPos.x, mousePos.y - canvasPos.y);
 
         int tileSize = tilemap.getTileSize();
-
         int hoverX = (int)(relMouse.x / tileSize);
         int hoverY = (int)(relMouse.y / tileSize);
 
-        float offsetX = 0;
-        float offsetY = 0;
+        float offsetX = 0, offsetY = 0;
 
         ImVec2 canvasSize = ImGui.getContentRegionAvail();
         int colsVisible = (int)(canvasSize.x / tileSize) + 2;
         int rowsVisible = (int)(canvasSize.y / tileSize) + 2;
-
         int startCol = (int)(-offsetX / tileSize);
         int startRow = (int)(-offsetY / tileSize);
 
         boolean mouseDown = ImGui.isMouseDown(0);
         boolean mouseClicked = ImGui.isMouseClicked(0);
 
+        // Disegna tile piazzate
         if (tilemap.getTilesetSprite() != null) {
             int texId = tilemap.getTilesetSprite().getTextureId();
             float texWidth = tilemap.getTilesetSprite().getWidth();
             float texHeight = tilemap.getTilesetSprite().getHeight();
-            int tilesPerRow = tilemap.getTilesPerRow();
+            int tpr = (int)(texWidth / tileSize);
 
             for (Map.Entry<String, Integer> entry : tilemap.getTiles().entrySet()) {
-                String[] parts = entry.getKey().split(",");
-                int tx = Integer.parseInt(parts[0]);
-                int ty = Integer.parseInt(parts[1]);
+                String[] p = entry.getKey().split(",");
+                int tx = Integer.parseInt(p[0]);
+                int ty = Integer.parseInt(p[1]);
                 int tileId = entry.getValue();
-
                 if (tileId <= 0) continue;
 
-                float screenX = canvasPos.x + tx * tileSize + offsetX;
-                float screenY = canvasPos.y + ty * tileSize + offsetY;
+                // Coordinate pixel arrotondate
+                float sx = (float)Math.floor(canvasPos.x + tx * tileSize + offsetX);
+                float sy = (float)Math.floor(canvasPos.y + ty * tileSize + offsetY);
 
-                int tileX = (tileId - 1) % tilesPerRow;
-                int tileY = (tileId - 1) / tilesPerRow;
+                int tileCol = (tileId - 1) % tpr;
+                int tileRow = (tileId - 1) / tpr;
 
-                float u1 = (tileX * tileSize) / texWidth;
-                float v1 = (tileY * tileSize) / texHeight;
-                float u2 = ((tileX + 1) * tileSize) / texWidth;
-                float v2 = ((tileY + 1) * tileSize) / texHeight;
+                // UV SENZA flip (coerente con Palette)
+                float u1 = (tileCol * tileSize) / texWidth;
+                float v1 = (tileRow * tileSize) / texHeight;
+                float u2 = ((tileCol + 1) * tileSize) / texWidth;
+                float v2 = ((tileRow + 1) * tileSize) / texHeight;
 
-                ImGui.getWindowDrawList().addImage(
-                        texId,
-                        screenX, screenY,
-                        screenX + tileSize, screenY + tileSize,
-                        u1, v1, u2, v2
-                );
+                ImGui.getWindowDrawList().addImage(texId, sx, sy, sx + tileSize, sy + tileSize, u1, v1, u2, v2);
             }
         }
 
+        // Griglia
         for (int row = startRow; row < startRow + rowsVisible; row++) {
             for (int col = startCol; col < startCol + colsVisible; col++) {
-                float x = canvasPos.x + col * tileSize + offsetX;
-                float y = canvasPos.y + row * tileSize + offsetY;
-
-                ImGui.getWindowDrawList().addRect(
-                        x, y, x + tileSize, y + tileSize,
-                        0x40FFFFFF // semi-transparent
-                );
+                float x = (float)Math.floor(canvasPos.x + col * tileSize + offsetX);
+                float y = (float)Math.floor(canvasPos.y + row * tileSize + offsetY);
+                ImGui.getWindowDrawList().addRect(x, y, x + tileSize, y + tileSize, 0x40FFFFFF);
             }
         }
 
+        // Highlight hover
         if (hoverX >= startCol && hoverX < startCol + colsVisible &&
                 hoverY >= startRow && hoverY < startRow + rowsVisible) {
-
-            float hx = canvasPos.x + hoverX * tileSize + offsetX;
-            float hy = canvasPos.y + hoverY * tileSize + offsetY;
-
-            ImGui.getWindowDrawList().addRectFilled(
-                    hx, hy, hx + tileSize, hy + tileSize,
-                    0x40FF0000 // semi-transparent red
-            );
+            float hx = (float)Math.floor(canvasPos.x + hoverX * tileSize + offsetX);
+            float hy = (float)Math.floor(canvasPos.y + hoverY * tileSize + offsetY);
+            ImGui.getWindowDrawList().addRectFilled(hx, hy, hx + tileSize, hy + tileSize, 0x40FF0000);
         }
 
+        // Paint
         if (ImGui.isWindowHovered() && (mouseClicked || (mouseDown && ImGui.isMouseDragging(0)))) {
             tilemap.setTile(hoverX, hoverY, selectedTileId);
             context.setSceneDirty(true);
@@ -572,7 +610,6 @@ public class InspectorPanel implements EditorPanel {
         ImGui.text("Tiles: " + tilemap.getTiles().size());
 
         ImGui.endChild();
-
         ImGui.end();
     }
 
