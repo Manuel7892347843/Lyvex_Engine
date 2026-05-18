@@ -3,6 +3,7 @@ package ui.panels;
 import core.Engine;
 import core.ProjectManager;
 import core.ProjectSettings;
+import core.lib.SceneManager;
 import core.sorting.SortingLayerManager;
 import imgui.ImGui;
 import imgui.flag.ImGuiCond;
@@ -26,6 +27,7 @@ public class MainMenuBarPanel implements EditorPanel {
     private ImBoolean projectSettingsOpen = new ImBoolean(false);
     private int selectedSettingsTab = 0;
     private final ImString newLayerName = new ImString("", 64);
+    private final ImString addSceneName = new ImString("", 64);
 
     @Override
     public void init(){
@@ -38,21 +40,16 @@ public class MainMenuBarPanel implements EditorPanel {
         init();
         if (ImGui.beginMainMenuBar()) {
             if (ImGui.beginMenu("File")) {
-                if (ImGui.menuItem("Open")) {
-                    JFileChooser chooser = new JFileChooser();
-                    chooser.setDialogTitle("Open Scene");
-                    chooser.setCurrentDirectory(ProjectManager.getScenesPath().toFile());
-                    chooser.setFileFilter(new FileNameExtensionFilter("Lyvex Scene (*.lyvexscene)", "lyvexscene"));
 
-                    int result = chooser.showOpenDialog(null);
-                    if (result == JFileChooser.APPROVE_OPTION) {
-                        Path selectedScene = chooser.getSelectedFile().toPath();
-                        context.getEngine().openScene(selectedScene);
+                // --- SCENA ---
+                if (ImGui.beginMenu("Scene")) {
+                    if (ImGui.menuItem("Open Scene...")) {
+                        openSceneDialog(context);
                     }
-                }
-
-                if (ImGui.menuItem("Save")) {
-                    Engine.saveCurrentScenePublic();
+                    if (ImGui.menuItem("Save Scene", "Ctrl+S")) {
+                        Engine.saveCurrentScenePublic();
+                    }
+                    ImGui.endMenu();
                 }
 
                 ImGui.endMenu();
@@ -62,7 +59,11 @@ public class MainMenuBarPanel implements EditorPanel {
                 ImGui.endMenu();
             }
 
+            // --- PROGETTO ---
             if (ImGui.beginMenu("Project")) {
+                if (ImGui.menuItem("Save Project", "Ctrl+Shift+S")) {
+                    ProjectSettings.save();
+                }
                 if (ImGui.menuItem("Project Settings")) {
                     projectSettingsOpen.set(true);
                 }
@@ -84,7 +85,7 @@ public class MainMenuBarPanel implements EditorPanel {
             float sidebarWidth = 150;
             ImGui.beginChild("SettingsSidebar", sidebarWidth, 0, true);
 
-            String[] tabs = {"Sorting Layers", "Physics", "Input", "Audio"};
+            String[] tabs = {"Sorting Layers", "Scenes", "Input", "Audio"};
             for (int i = 0; i < tabs.length; i++) {
                 if (ImGui.selectable(tabs[i], selectedSettingsTab == i)) {
                     selectedSettingsTab = i;
@@ -98,7 +99,7 @@ public class MainMenuBarPanel implements EditorPanel {
 
             switch (selectedSettingsTab) {
                 case 0 -> drawSortingLayersSettings(context);
-                case 1 -> drawPhysicsSettings(context);
+                case 1 -> drawScenesSettings(context);
                 case 2 -> drawInputSettings(context);
                 case 3 -> drawAudioSettings(context);
             }
@@ -195,10 +196,108 @@ public class MainMenuBarPanel implements EditorPanel {
         ImGui.text("Higher index = rendered last (in front)");
     }
 
-    private void drawPhysicsSettings(EditorContext context) {
-        ImGui.text("Physics Settings");
+    private void drawScenesSettings(EditorContext context) {
+        ImGui.text("Scene Build Settings");
         ImGui.separator();
-        ImGui.text("Coming soon...");
+
+        SceneManager manager = ProjectSettings.getSceneManager();
+        List<SceneManager.SceneEntry> scenes = manager.getSceneEntries();
+
+        ImGui.text("Scenes in Build:");
+        ImGui.separator();
+
+        int sceneToRemove = -1;
+        int sceneToLoad = -1;
+
+        for (int i = 0; i < scenes.size(); i++) {
+            ImGui.pushID("scene_" + i);
+
+            ImBoolean inBuild = new ImBoolean(scenes.get(i).inBuild);
+            if (ImGui.checkbox("##inbuild", inBuild)) {
+                manager.setSceneInBuild(i, inBuild.get());
+                context.setSceneDirty(true);
+            }
+            ImGui.sameLine();
+
+            ImGui.text(String.valueOf(i));
+            ImGui.sameLine();
+
+            if (i > 0) {
+                if (ImGui.arrowButton("##up", ImGuiDir.Up)) {
+                    manager.moveSceneUp(i);
+                    context.setSceneDirty(true);
+                }
+                ImGui.sameLine();
+            } else {
+                ImGui.dummy(20, 0);
+                ImGui.sameLine();
+            }
+
+            if (i < scenes.size() - 1) {
+                if (ImGui.arrowButton("##down", ImGuiDir.Down)) {
+                    manager.moveSceneDown(i);
+                    context.setSceneDirty(true);
+                }
+                ImGui.sameLine();
+            } else {
+                ImGui.dummy(20, 0);
+                ImGui.sameLine();
+            }
+
+            ImString sceneName = new ImString(scenes.get(i).name, 64);
+            if (ImGui.inputText("##name", sceneName)) {
+                manager.renameScene(i, sceneName.get().trim());
+                context.setSceneDirty(true);
+            }
+            ImGui.sameLine();
+
+            if (ImGui.button("Load", 50, 20)) {
+                sceneToLoad = i;
+            }
+            ImGui.sameLine();
+
+            if (ImGui.button("X", 20, 20)) {
+                sceneToRemove = i;
+            }
+
+            ImGui.textDisabled("  File: " + scenes.get(i).fileName);
+
+            ImGui.popID();
+        }
+
+        if (sceneToLoad >= 0) {
+            manager.loadScene(sceneToLoad);
+            context.setSceneDirty(true);
+        }
+        if (sceneToRemove >= 0) {
+            manager.removeScene(sceneToRemove);
+            context.setSceneDirty(true);
+        }
+
+        ImGui.separator();
+
+        // --- Aggiungi nuova scena ---
+        ImGui.text("Add New Scene:");
+        ImGui.inputText("##newscene", addSceneName);
+        ImGui.sameLine();
+
+        String suggestedFileName = addSceneName.get().trim().replaceAll("[^a-zA-Z0-9]", "_") + ".lyvexscene";
+
+        ImGui.textDisabled(" → " + suggestedFileName);
+
+        if (ImGui.button("Add")) {
+            String name = addSceneName.get().trim();
+            if (!name.isEmpty()) {
+                String fileName = name.replaceAll("[^a-zA-Z0-9]", "_") + ".lyvexscene";
+                manager.addScene(name, fileName);
+                addSceneName.set("");
+                context.setSceneDirty(true);
+            }
+        }
+
+        ImGui.separator();
+        ImGui.text("Tip: Drag scenes to reorder build index");
+        ImGui.text("Check 'In Build' to include in final game");
     }
 
     private void drawInputSettings(EditorContext context) {
@@ -211,6 +310,19 @@ public class MainMenuBarPanel implements EditorPanel {
         ImGui.text("Audio Settings");
         ImGui.separator();
         ImGui.text("Coming soon...");
+    }
+
+    private void openSceneDialog(EditorContext context) {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Open Scene");
+        chooser.setCurrentDirectory(ProjectManager.getScenesPath().toFile());
+        chooser.setFileFilter(new FileNameExtensionFilter("Lyvex Scene (*.lyvexscene)", "lyvexscene"));
+
+        int result = chooser.showOpenDialog(null);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            Path selectedScene = chooser.getSelectedFile().toPath();
+            context.getEngine().openScene(selectedScene);
+        }
     }
 
     @Override

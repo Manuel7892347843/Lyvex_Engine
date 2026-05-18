@@ -5,7 +5,6 @@ import core.math.vector2D;
 
 public class Camera extends Component {
     public boolean primary = true;
-
     private float orthoSize = 5.0f;
     private float nearPlane = -100.0f;
     private float farPlane = 100.0f;

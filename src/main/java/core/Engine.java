@@ -2,9 +2,11 @@ package core;
 
 import static org.lwjgl.glfw.GLFW.*;
 
+import com.google.gson.Gson;
 import core.component.Component;
 import core.gameobject.GameObject;
 import core.input.InputManager;
+import core.lib.SceneManager;
 import core.render.FrameBuffer;
 import core.render.GameFrameBuffer;
 import core.render.SceneRenderer;
@@ -13,6 +15,7 @@ import core.scene.SceneSerializer;
 import core.scriptutil.ScriptAutoRefreshWatcher;
 import core.scriptutil.ScriptComponentRegistry;
 import org.lwjgl.opengl.GL;
+import ui.EditorContext;
 import ui.EditorUI;
 import ui.ImGuiLayer;
 
@@ -60,6 +63,8 @@ public class Engine {
     private void init() {
         initializeProjectSelection();
 
+        ProjectSettings.load();
+
         if (!glfwInit()) {
             throw new IllegalStateException("GLFW init failed");
         }
@@ -83,8 +88,16 @@ public class Engine {
         sceneRenderer = new SceneRenderer(SCENE_WIDTH, SCENE_HEIGHT);
         sceneFrameBuffer = new FrameBuffer(SCENE_WIDTH, SCENE_HEIGHT);
         gameFrameBuffer = new GameFrameBuffer(SCENE_WIDTH, SCENE_HEIGHT);
+
         editorUI = new EditorUI();
         editorUI.getContext().setEngine(this);
+        editorUI.getContext().addSceneChangeListener(() -> {
+            Scene newScene = editorUI.getContext().getCurrentScene();
+            if (sceneRenderer != null && newScene != null) {
+                sceneRenderer.setScene(newScene);
+            }
+            currentScene = newScene;
+        });
 
         ScriptComponentRegistry.refresh();
 
@@ -262,7 +275,8 @@ public class Engine {
                 sceneRenderer.setScene(currentScene);
             }
 
-            saveSceneReferenceToProjectFile(scenePath);
+            updateStartupScene(scenePath);
+
         } catch (IOException e) {
             throw new RuntimeException("Failed to open scene: " + scenePath, e);
         }
@@ -275,7 +289,7 @@ public class Engine {
 
         try {
             SceneSerializer.save(currentScene, currentScenePath);
-            saveSceneReferenceToProjectFile(currentScenePath);
+            ProjectSettings.save();
         } catch (IOException e) {
             throw new RuntimeException("Failed to save scene", e);
         }
@@ -290,32 +304,51 @@ public class Engine {
     }
 
     private void loadSceneFromProjectFileOrDefault() {
+        Path projectFile = ProjectManager.getProjectFilePath();
+
+        // Se il file progetto non esiste, crea scena vuota
+        if (!Files.exists(projectFile)) {
+            Scene defaultScene = new Scene("Untitled Scene");
+            currentScene = defaultScene;
+            EditorContext.getInstance().setCurrentScene(defaultScene);
+            return;
+        }
+
         try {
-            Path projectFile = ProjectManager.getProjectFilePath();
+            // Leggi il JSON
+            String json = Files.readString(projectFile);
+            Gson gson = new Gson();
+            ProjectSettings.ProjectData data = gson.fromJson(json, ProjectSettings.ProjectData.class);
 
-            if (Files.exists(projectFile)) {
-                String savedScenePathText = Files.readString(projectFile).trim();
-                if (!savedScenePathText.isBlank()) {
-                    Path savedScenePath = Path.of(savedScenePathText);
-                    if (Files.exists(savedScenePath)) {
-                        openScene(savedScenePath);
-                        return;
-                    }
-                }
+            if (data == null || data.startupScene == null || data.startupScene.isBlank()) {
+                Scene defaultScene = new Scene("Untitled Scene");
+                currentScene = defaultScene;
+                EditorContext.getInstance().setCurrentScene(defaultScene);
+                return;
             }
 
-            Path defaultScene = ProjectManager.getScenesPath().resolve("Main.lyvexscene");
+            Path scenePath = ProjectManager.getScenesPath().resolve(data.startupScene);
 
-            if (Files.exists(defaultScene)) {
-                openScene(defaultScene);
+            if (Files.exists(scenePath)) {
+                Scene scene = SceneSerializer.load(scenePath);
+                currentScene = scene;
+                EditorContext.getInstance().setCurrentScene(scene);
+                currentScenePath = scenePath;
+                System.out.println("Loaded startup scene: " + data.startupScene);
             } else {
-                currentScene = new Scene("Main Scene");
-                currentScene.addRootObject(new GameObject("Camera Target", editorUI.getContext()));
-                SceneSerializer.save(currentScene, defaultScene);
-                openScene(defaultScene);
+                Scene defaultScene = new Scene(data.startupScene.replace(".lyvexscene", ""));
+                currentScene = defaultScene;
+                EditorContext.getInstance().setCurrentScene(defaultScene);
+                System.err.println("Startup scene not found: " + scenePath);
             }
+
         } catch (IOException e) {
-            throw new RuntimeException("Failed to load scene from project file", e);
+            System.err.println("Failed to load project file");
+            e.printStackTrace();
+
+            Scene defaultScene = new Scene("Untitled Scene");
+            currentScene = defaultScene;
+            EditorContext.getInstance().setCurrentScene(defaultScene);
         }
     }
 
@@ -331,6 +364,29 @@ public class Engine {
         } catch (IOException e) {
             throw new RuntimeException("Failed to write scene path into project file", e);
         }
+    }
+
+    private static void updateStartupScene(Path scenePath) {
+        Path scenesDir = ProjectManager.getScenesPath();
+        Path relativePath = scenesDir.relativize(scenePath);
+        String fileName = relativePath.toString().replace('\\', '/');
+
+        SceneManager manager = ProjectSettings.getSceneManager();
+        boolean found = false;
+        for (int i = 0; i < manager.getSceneEntries().size(); i++) {
+            if (manager.getSceneEntries().get(i).fileName.equals(fileName)) {
+                manager.loadScene(i);
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            String sceneName = fileName.replace(".lyvexscene", "");
+            manager.addScene(sceneName, fileName);
+        }
+
+        ProjectSettings.save();
     }
 
     private void openExistingProjectFlow() {
@@ -406,6 +462,16 @@ public class Engine {
 
     public EditorUI getEditorUI() {
         return editorUI;
+    }
+
+    public void onSceneChanged(Scene scene) {
+        if (sceneRenderer != null) {
+            sceneRenderer.setScene(scene);
+        }
+        if (editorUI != null) {
+            editorUI.getContext().setCurrentScene(scene);
+        }
+        currentScene = scene;
     }
 
     private void cleanup() {

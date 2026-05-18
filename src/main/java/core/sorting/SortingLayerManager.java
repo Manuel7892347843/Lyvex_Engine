@@ -59,4 +59,12 @@ public class SortingLayerManager {
         }
         return "Default";
     }
+
+    public void loadLayers(List<String> newLayers) {
+        layers.clear();
+        layers.addAll(newLayers);
+        if (!layers.contains("Default")) {
+            layers.add(0, "Default");
+        }
+    }
 }

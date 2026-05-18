@@ -8,8 +8,16 @@ public class Tile {
         this.tileId = tileId;
     }
 
-    public int getTileId() { return tileId; }
-    public void setTileId(int tileId) { this.tileId = tileId; }
-    public boolean isSolid() { return solid; }
-    public void setSolid(boolean solid) { this.solid = solid; }
+    public int getTileId() {
+        return tileId;
+    }
+    public void setTileId(int tileId) {
+        this.tileId = tileId;
+    }
+    public boolean isSolid() {
+        return solid;
+    }
+    public void setSolid(boolean solid) {
+        this.solid = solid;
+    }
 }

@@ -4,6 +4,9 @@ import core.Engine;
 import core.scene.Scene;
 import core.gameobject.GameObject;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public final class EditorContext {
     private static EditorContext instance;
     private int sceneTextureId;
@@ -15,6 +18,7 @@ public final class EditorContext {
     private boolean sceneHovered;
 
     private Scene currentScene;
+    private List<Runnable> sceneChangeListeners = new ArrayList<>();
     private GameObject selectedGameObject;
     private boolean sceneDirty;
     private Engine engine;
@@ -80,6 +84,13 @@ public final class EditorContext {
 
     public void setCurrentScene(Scene currentScene) {
         this.currentScene = currentScene;
+        for (Runnable listener : sceneChangeListeners) {
+            listener.run();
+        }
+    }
+
+    public void addSceneChangeListener(Runnable listener) {
+        sceneChangeListeners.add(listener);
     }
 
     public GameObject getSelectedGameObject() {

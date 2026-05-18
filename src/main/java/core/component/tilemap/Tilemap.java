@@ -15,7 +15,6 @@ public class Tilemap extends Component {
     private float pixelsPerUnit = 100.0f;
     private String tilesetPath = "";
     private Map<String, Integer> tiles = new HashMap<>();
-
     private transient int minX = 0, minY = 0, maxX = 0, maxY = 0;
     private String sortingLayer = "Default";
     private int sortingOrder = 0;
