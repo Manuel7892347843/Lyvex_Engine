@@ -111,6 +111,7 @@ public class SceneManager {
         Engine engine = EditorContext.getInstance().getEngine();
         if (engine != null) {
             engine.onSceneChanged(scene);
+            EditorContext.getInstance().setSelectedGameObject(null);
         }
     }
 
