@@ -118,28 +118,23 @@ public class Engine {
             glfwPollEvents();
             imguiLayer.startFrame();
 
-            // === GESTIONE STATO PLAY MODE (PRIMA del rendering) ===
             if (isInPlayMode && !isInitialized) {
                 awakeScene();
                 startScene();
                 isInitialized = true;
-                editorUI.setShowGameView(true);  // ← QUI, prima di draw()
+                editorUI.setShowGameView(true);
             }
 
             if (!isInPlayMode && isInitialized) {
                 isInitialized = false;
-                editorUI.setShowGameView(false); // ← QUI, prima di draw()
+                editorUI.setShowGameView(false);
             }
 
-            // === UPDATE LOGICA (solo in play) ===
             if (isInPlayMode) {
                 updateScene();
                 lateUpdateScene();
             }
 
-            // === RENDERING FRAMEBUFFER ===
-
-            // Game view (solo se in play mode)
             if (isInPlayMode) {
                 gameFrameBuffer.bind();
                 sceneRenderer.setUseSceneCamera(true);
@@ -148,7 +143,6 @@ public class Engine {
                 editorUI.getGamePanel().setGameTextureId(gameFrameBuffer.getTextureId());
             }
 
-            // Scene view (sempre, per l'editor)
             sceneFrameBuffer.bind();
             sceneRenderer.setUseSceneCamera(false);
             sceneRenderer.render();
@@ -156,10 +150,8 @@ public class Engine {
 
             editorUI.getContext().setSceneTextureId(sceneFrameBuffer.getTextureId());
 
-            // === UI ===
             editorUI.draw();
 
-            // === CAMERA EDITOR (solo se non in play) ===
             if (!isInPlayMode) {
                 sceneRenderer.updateCamera(editorUI.getContext());
             }
@@ -306,7 +298,6 @@ public class Engine {
     private void loadSceneFromProjectFileOrDefault() {
         Path projectFile = ProjectManager.getProjectFilePath();
 
-        // Se il file progetto non esiste, crea scena vuota
         if (!Files.exists(projectFile)) {
             Scene defaultScene = new Scene("Untitled Scene");
             currentScene = defaultScene;
@@ -315,7 +306,6 @@ public class Engine {
         }
 
         try {
-            // Leggi il JSON
             String json = Files.readString(projectFile);
             Gson gson = new Gson();
             ProjectSettings.ProjectData data = gson.fromJson(json, ProjectSettings.ProjectData.class);
