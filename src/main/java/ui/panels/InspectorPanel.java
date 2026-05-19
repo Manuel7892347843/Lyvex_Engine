@@ -42,11 +42,6 @@ public class InspectorPanel implements EditorPanel {
     private Tilemap editingTilemap = null;
     private int selectedTileId = 1;
     private float paletteZoom = 1.0f;
-    private float palettePanX = 0.0f;
-    private float palettePanY = 0.0f;
-    private boolean paletteIsPanning = false;
-    private float paletteLastMouseX = 0.0f;
-    private float paletteLastMouseY = 0.0f;
     private ImBoolean tilemapEditorOpen = new ImBoolean(false);
 
     @Override

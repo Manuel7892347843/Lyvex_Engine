@@ -397,12 +397,13 @@ public class Engine {
 
         int result = chooser.showOpenDialog(null);
         if (result != JFileChooser.APPROVE_OPTION) {
-            throw new IllegalStateException("No project selected");
+            initializeProjectSelection();
         }
 
         Path selectedPath = chooser.getSelectedFile().toPath();
 
         if (!ProjectManager.isValidProject(selectedPath)) {
+
             JOptionPane.showMessageDialog(
                     null,
                     "The selected folder is not a valid Lyvex project.",
@@ -456,7 +457,7 @@ public class Engine {
         } else if (choice == 1) {
             createNewProjectFlow();
         } else {
-            throw new IllegalStateException("No project selected");
+            initializeProjectSelection();
         }
     }
 

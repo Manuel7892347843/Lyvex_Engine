@@ -3,6 +3,7 @@ package core;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import core.lib.SceneManager;
+import core.log.Log;
 import core.sorting.SortingLayerManager;
 
 import java.io.IOException;
@@ -17,8 +18,6 @@ public class ProjectSettings {
     private static SortingLayerManager sortingLayerManager;
     private static SceneManager sceneManager;
 
-    // --- Dati serializzabili ---
-
     public static class ProjectData {
         public String projectName = "";
         public List<String> sortingLayers = new ArrayList<>();
@@ -26,8 +25,6 @@ public class ProjectSettings {
         public String startupScene = "";
         public int targetFPS = 60;
     }
-
-    // --- Getters (lazy init) ---
 
     public static SortingLayerManager getSortingLayerManager() {
         if (sortingLayerManager == null) {
@@ -43,21 +40,16 @@ public class ProjectSettings {
         return sceneManager;
     }
 
-    // --- Salva nel file .lyvex ---
-
     public static void save() {
         Path projectFile = ProjectManager.getProjectFilePath();
 
         ProjectData data = new ProjectData();
         data.projectName = ProjectManager.getProjectRoot().getFileName().toString();
 
-        // Sorting layers
         data.sortingLayers = getSortingLayerManager().getLayers();
 
-        // Scene entries
         data.scenes = getSceneManager().getSceneEntries();
 
-        // Startup scene
         SceneManager.SceneEntry active = getSceneManager().getActiveSceneEntry();
         if (active != null) {
             data.startupScene = active.fileName;
@@ -66,20 +58,18 @@ public class ProjectSettings {
         try {
             Files.createDirectories(projectFile.getParent());
             Files.writeString(projectFile, GSON.toJson(data));
-            System.out.println("Project saved to: " + projectFile);
+            Log.log("Project saved to: " + projectFile);
         } catch (IOException e) {
             System.err.println("Failed to save project settings");
             e.printStackTrace();
         }
     }
 
-    // --- Carica dal file .lyvex ---
-
     public static void load() {
         Path projectFile = ProjectManager.getProjectFilePath();
 
         if (!Files.exists(projectFile)) {
-            System.out.println("No project file found, using defaults");
+            Log.log("No project file found, using defaults");
             return;
         }
 
@@ -89,17 +79,15 @@ public class ProjectSettings {
 
             if (data == null) return;
 
-            // Carica sorting layers
             if (data.sortingLayers != null && !data.sortingLayers.isEmpty()) {
                 getSortingLayerManager().loadLayers(data.sortingLayers);
             }
 
-            // Carica scene entries
             if (data.scenes != null) {
                 getSceneManager().loadFromProject(data.scenes);
             }
 
-            System.out.println("Project loaded from: " + projectFile);
+            Log.log("Project loaded from: " + projectFile);
         } catch (IOException e) {
             System.err.println("Failed to load project settings");
             e.printStackTrace();
