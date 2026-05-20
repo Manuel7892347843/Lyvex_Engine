@@ -120,11 +120,12 @@ public class SceneRenderer {
         matrix4f viewProj;
         if (useSceneCamera) {
             Camera sceneCamera = findCameraForDisplay(targetDisplay);
-            if (sceneCamera != null) {
-                viewProj = sceneCamera.getViewProjectionMatrix(viewportWidth, viewportHeight);
-            } else {
-                viewProj = getEditorCameraMatrix();
+            if (sceneCamera == null) {
+                glUseProgram(0);
+                return;
             }
+
+            viewProj = sceneCamera.getViewProjectionMatrix(viewportWidth, viewportHeight);
         } else {
             viewProj = getEditorCameraMatrix();
         }
@@ -200,21 +201,15 @@ public class SceneRenderer {
     private Camera findCameraForDisplay(int display) {
         if (scene == null) return null;
 
-        Camera fallbackPrimary = null;
-
         for (GameObject go : scene.getRootObjects()) {
             Camera camera = findCameraForDisplayRecursive(go, display);
 
             if (camera != null) {
                 return camera;
             }
-
-            if (fallbackPrimary == null) {
-                fallbackPrimary = findPrimaryCameraRecursive(go);
-            }
         }
 
-        return display == 1 ? fallbackPrimary : null;
+        return null;
     }
 
     private Camera findCameraForDisplayRecursive(GameObject gameObject, int display) {
