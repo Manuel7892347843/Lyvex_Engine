@@ -123,12 +123,24 @@ public class InputManager {
         return key >= 0 && key < KEY_COUNT && keysDown[key];
     }
 
+    public static boolean isKeyDown(Key key) {
+        return key != null && isKeyDown(key.getKeyCode());
+    }
+
     public static boolean isKeyPressed(int key) {
         return key >= 0 && key < KEY_COUNT && keysPressed[key];
     }
 
+    public static boolean isKeyPressed(Key key) {
+        return key != null && isKeyPressed(key.getKeyCode());
+    }
+
     public static boolean isKeyReleased(int key) {
         return key >= 0 && key < KEY_COUNT && keysReleased[key];
+    }
+
+    public static boolean isKeyReleased(Key key) {
+        return key != null && isKeyReleased(key.getKeyCode());
     }
 
     public static boolean isMouseButtonDown(int button) {

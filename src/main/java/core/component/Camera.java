@@ -5,10 +5,11 @@ import core.math.vector2D;
 
 public class Camera extends Component {
     public boolean primary = true;
+    public int targetDisplay = 1;
     public float orthoSize = 5.0f;
     public float nearPlane = -100.0f;
     public float farPlane = 100.0f;
-    private float aspectRatio = 16.0f / 9.0f;
+    public float aspectRatio = 16.0f / 9.0f;
 
     private transient matrix4f viewMatrix = new matrix4f();
     private transient matrix4f projectionMatrix = new matrix4f();
@@ -60,5 +61,13 @@ public class Camera extends Component {
 
     public void setAspectRatio(float aspect) {
         this.aspectRatio = aspect;
+    }
+
+    public int getTargetDisplay() {
+        return targetDisplay;
+    }
+
+    public void setTargetDisplay(int targetDisplay) {
+        this.targetDisplay = Math.max(1, targetDisplay);
     }
 }

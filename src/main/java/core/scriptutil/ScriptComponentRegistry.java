@@ -30,6 +30,8 @@ public class ScriptComponentRegistry {
         COMPONENT_CLASSES.add(RigidBody2D.class);
         COMPONENT_CLASSES.add(ParentFollower.class);
         COMPONENT_CLASSES.add(Tilemap.class);
+        COMPONENT_CLASSES.add(AudioSource.class);
+        COMPONENT_CLASSES.add(AudioDistanceAttenuation.class);
 
         Path scriptsRoot = ProjectManager.getScriptsPath();
         if (scriptsRoot == null || !Files.exists(scriptsRoot)) {

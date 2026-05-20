@@ -14,6 +14,8 @@ public class GamePanel implements EditorPanel {
     private final int HEIGHT = 600;
 
     private int gameTextureId = 0;
+    private int selectedDisplay = 1;
+    private int maxDisplays = 4;
 
     @Override
     public void init() {
@@ -26,7 +28,6 @@ public class GamePanel implements EditorPanel {
         init();
         ImGui.pushStyleVar(ImGuiStyleVar.WindowPadding, 0, 0);
 
-        // begin() ritorna true se la finestra NON è collassata
         boolean isOpen = ImGui.begin("Game", ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoResize);
 
         if (isOpen) {
@@ -44,7 +45,6 @@ public class GamePanel implements EditorPanel {
             }
         }
 
-        // end() DEVE essere chiamato SEMPRE, anche se begin() ritorna false
         ImGui.end();
         ImGui.popStyleVar();
     }
@@ -59,5 +59,25 @@ public class GamePanel implements EditorPanel {
 
     public int getGameTextureId() {
         return gameTextureId;
+    }
+
+    public int getSelectedDisplay() {
+        return selectedDisplay;
+    }
+
+    public void setSelectedDisplay(int selectedDisplay) {
+        this.selectedDisplay = Math.max(1, selectedDisplay);
+    }
+
+    public int getMaxDisplays() {
+        return maxDisplays;
+    }
+
+    public void setMaxDisplays(int maxDisplays) {
+        this.maxDisplays = Math.max(1, maxDisplays);
+
+        if (selectedDisplay > this.maxDisplays) {
+            selectedDisplay = this.maxDisplays;
+        }
     }
 }

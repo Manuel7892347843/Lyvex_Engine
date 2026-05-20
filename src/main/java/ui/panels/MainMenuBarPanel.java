@@ -3,6 +3,7 @@ package ui.panels;
 import core.Engine;
 import core.ProjectManager;
 import core.ProjectSettings;
+import core.audio.AudioManager;
 import core.lib.SceneManager;
 import core.sorting.SortingLayerManager;
 import imgui.ImGui;
@@ -28,6 +29,8 @@ public class MainMenuBarPanel implements EditorPanel {
     private int selectedSettingsTab = 0;
     private final ImString newLayerName = new ImString("", 64);
     private final ImString addSceneName = new ImString("", 64);
+    private final float[] masterVolume = new float[]{1.0f};
+    private final ImBoolean audioMuted = new ImBoolean(false);
 
     @Override
     public void init(){
@@ -309,7 +312,22 @@ public class MainMenuBarPanel implements EditorPanel {
     private void drawAudioSettings(EditorContext context) {
         ImGui.text("Audio Settings");
         ImGui.separator();
-        ImGui.text("Coming soon...");
+
+        masterVolume[0] = AudioManager.getMasterVolume();
+        audioMuted.set(AudioManager.isMuted());
+
+        if (ImGui.sliderFloat("Master Volume", masterVolume, 0.0f, 1.0f)) {
+            AudioManager.setMasterVolume(masterVolume[0]);
+            context.setSceneDirty(true);
+        }
+
+        if (ImGui.checkbox("Mute", audioMuted)) {
+            AudioManager.setMuted(audioMuted.get());
+            context.setSceneDirty(true);
+        }
+
+        ImGui.separator();
+        ImGui.textDisabled("Tip: Master Volume controls the global listener gain.");
     }
 
     private void openSceneDialog(EditorContext context) {

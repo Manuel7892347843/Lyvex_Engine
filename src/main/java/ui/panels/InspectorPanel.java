@@ -415,12 +415,9 @@ public class InspectorPanel implements EditorPanel {
 
         float paletteWidth = 350;
 
-        // === CONTROLLI ZOOM (fuori dalla child, sempre visibili) ===
-        // Calcola la posizione assoluta per i controlli zoom
         ImVec2 windowPos = ImGui.getWindowPos();
         float controlsY = ImGui.getCursorPosY();
 
-        // Disegna i controlli zoom nella finestra padre (non in una child)
         ImGui.text("Palette");
         ImGui.sameLine();
         if (ImGui.button("-", 24, 24)) {
@@ -438,8 +435,6 @@ public class InspectorPanel implements EditorPanel {
         }
         ImGui.separator();
 
-        // === PALETTE (child scrollabile, sotto i controlli) ===
-        // Calcola l'altezza disponibile per la palette
         float controlsHeight = ImGui.getCursorPosY() - controlsY;
         float availableHeight = ImGui.getContentRegionAvail().y;
 
@@ -457,7 +452,6 @@ public class InspectorPanel implements EditorPanel {
             int basePaletteTileSize = 48;
             int pSize = (int)(basePaletteTileSize * paletteZoom);
 
-            // --- ERASER ---
             ImGui.pushID("palette_eraser");
             boolean sel = (selectedTileId == 0);
             if (sel) {
@@ -471,7 +465,6 @@ public class InspectorPanel implements EditorPanel {
             if (sel) ImGui.popStyleColor(3);
             ImGui.popID();
 
-            // --- TILE GRID ---
             for (int i = 1; i <= totalTiles; i++) {
                 ImGui.pushID("palette_" + i);
                 boolean isSel = (selectedTileId == i);
@@ -489,7 +482,6 @@ public class InspectorPanel implements EditorPanel {
                 int tileX = (i - 1) % tilesPerRow;
                 int tileY = (i - 1) / tilesPerRow;
 
-                // UV SENZA flip (coerente con Canvas)
                 float u1 = (tileX * tileSize) / texWidth;
                 float v1 = (tileY * tileSize) / texHeight;
                 float u2 = ((tileX + 1) * tileSize) / texWidth;
@@ -520,11 +512,9 @@ public class InspectorPanel implements EditorPanel {
             ImGui.text("No tileset loaded!");
         }
 
-        ImGui.endChild(); // Fine Palette
+        ImGui.endChild();
         ImGui.sameLine();
 
-        // ==================== CANVAS ====================
-        // Il canvas deve occupare lo spazio rimanente in altezza
         float canvasHeight = ImGui.getContentRegionAvail().y;
         ImGui.beginChild("Canvas", 0, canvasHeight, true);
 
@@ -547,7 +537,6 @@ public class InspectorPanel implements EditorPanel {
         boolean mouseDown = ImGui.isMouseDown(0);
         boolean mouseClicked = ImGui.isMouseClicked(0);
 
-        // Disegna tile piazzate
         if (tilemap.getTilesetSprite() != null) {
             int texId = tilemap.getTilesetSprite().getTextureId();
             float texWidth = tilemap.getTilesetSprite().getWidth();
@@ -561,14 +550,12 @@ public class InspectorPanel implements EditorPanel {
                 int tileId = entry.getValue();
                 if (tileId <= 0) continue;
 
-                // Coordinate pixel arrotondate
                 float sx = (float)Math.floor(canvasPos.x + tx * tileSize + offsetX);
                 float sy = (float)Math.floor(canvasPos.y + ty * tileSize + offsetY);
 
                 int tileCol = (tileId - 1) % tpr;
                 int tileRow = (tileId - 1) / tpr;
 
-                // UV SENZA flip (coerente con Palette)
                 float u1 = (tileCol * tileSize) / texWidth;
                 float v1 = (tileRow * tileSize) / texHeight;
                 float u2 = ((tileCol + 1) * tileSize) / texWidth;
@@ -578,7 +565,6 @@ public class InspectorPanel implements EditorPanel {
             }
         }
 
-        // Griglia
         for (int row = startRow; row < startRow + rowsVisible; row++) {
             for (int col = startCol; col < startCol + colsVisible; col++) {
                 float x = (float)Math.floor(canvasPos.x + col * tileSize + offsetX);
@@ -587,7 +573,6 @@ public class InspectorPanel implements EditorPanel {
             }
         }
 
-        // Highlight hover
         if (hoverX >= startCol && hoverX < startCol + colsVisible &&
                 hoverY >= startRow && hoverY < startRow + rowsVisible) {
             float hx = (float)Math.floor(canvasPos.x + hoverX * tileSize + offsetX);
@@ -595,7 +580,6 @@ public class InspectorPanel implements EditorPanel {
             ImGui.getWindowDrawList().addRectFilled(hx, hy, hx + tileSize, hy + tileSize, 0x40FF0000);
         }
 
-        // Paint
         if (ImGui.isWindowHovered() && (mouseClicked || (mouseDown && ImGui.isMouseDragging(0)))) {
             tilemap.setTile(hoverX, hoverY, selectedTileId);
             context.setSceneDirty(true);

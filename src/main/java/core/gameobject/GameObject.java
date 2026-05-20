@@ -145,10 +145,32 @@ public class GameObject {
     }
 
     public GameObject findGameObject(String name){
-        for(GameObject obj: context.getCurrentScene().getRootObjects()){
-            if(obj.name.equals(name))
-                return obj;
+        if (context == null || context.getCurrentScene() == null || name == null) {
+            return null;
         }
+
+        for(GameObject obj: context.getCurrentScene().getRootObjects()){
+            GameObject found = findGameObjectRecursive(obj, name);
+            if(found != null) {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    private GameObject findGameObjectRecursive(GameObject current, String name) {
+        if(current.getName().equals(name)) {
+            return current;
+        }
+
+        for(GameObject child : current.getChildren()) {
+            GameObject found = findGameObjectRecursive(child, name);
+            if(found != null) {
+                return found;
+            }
+        }
+
         return null;
     }
 

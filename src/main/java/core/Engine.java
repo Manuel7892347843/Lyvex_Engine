@@ -18,6 +18,7 @@ import org.lwjgl.opengl.GL;
 import ui.EditorContext;
 import ui.EditorUI;
 import ui.ImGuiLayer;
+import core.audio.AudioManager;
 
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
@@ -80,6 +81,8 @@ public class Engine {
 
         GL.createCapabilities();
 
+        AudioManager.init();
+
         InputManager.init(window);
 
         imguiLayer = new ImGuiLayer();
@@ -126,6 +129,7 @@ public class Engine {
             }
 
             if (!isInPlayMode && isInitialized) {
+                destroyScene();
                 isInitialized = false;
                 editorUI.setShowGameView(false);
             }
@@ -136,10 +140,14 @@ public class Engine {
             }
 
             if (isInPlayMode) {
+                int selectedDisplay = editorUI.getGamePanel().getSelectedDisplay();
+
                 gameFrameBuffer.bind();
                 sceneRenderer.setUseSceneCamera(true);
+                sceneRenderer.setTargetDisplay(selectedDisplay);
                 sceneRenderer.render();
                 gameFrameBuffer.unbind();
+
                 editorUI.getGamePanel().setGameTextureId(gameFrameBuffer.getTextureId());
             }
 
@@ -235,6 +243,28 @@ public class Engine {
         }
         for (GameObject child : gameObject.getChildren()) {
             lateUpdateGameObjectRecursive(child);
+        }
+    }
+
+    private void destroyScene() {
+        if (currentScene == null) {
+            return;
+        }
+
+        for (GameObject rootObject : currentScene.getRootObjects()) {
+            destroyGameObjectRecursive(rootObject);
+        }
+    }
+
+    private void destroyGameObjectRecursive(GameObject gameObject) {
+        for (Component component : gameObject.getComponents()) {
+            component.onDestroy();
+            component.setAwoken(false);
+            component.setStarted(false);
+        }
+
+        for (GameObject child : gameObject.getChildren()) {
+            destroyGameObjectRecursive(child);
         }
     }
 
@@ -483,6 +513,8 @@ public class Engine {
         }
 
         InputManager.dispose();
+
+        AudioManager.cleanup();
 
         if (imguiLayer != null) {
             imguiLayer.dispose();

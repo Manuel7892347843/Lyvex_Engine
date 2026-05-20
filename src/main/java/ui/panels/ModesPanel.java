@@ -31,8 +31,15 @@ public class ModesPanel implements EditorPanel {
                 ImGui.text("Engine not ready...");
             } else {
                 boolean isPlaying = context.getEngine().getEngineState();
+                boolean showGame = context.getEngine().getEditorUI().isShowingGameView();
+
                 float availableWidth = ImGui.getContentRegionAvailX();
                 float totalButtonsWidth = isPlaying ? 270.0f : 170.0f;
+
+                if (showGame) {
+                    totalButtonsWidth += 180.0f;
+                }
+
                 float centerX = (availableWidth - totalButtonsWidth) * 0.5f;
                 if (centerX > 0) {
                     ImGui.setCursorPosX(centerX);
@@ -51,27 +58,59 @@ public class ModesPanel implements EditorPanel {
                 }
 
                 ImGui.sameLine();
-                boolean showGame = context.getEngine().getEditorUI().isShowingGameView();
+
                 if (showGame) {
                     ImGui.pushStyleColor(ImGuiCol.Button, 0.2f, 0.7f, 0.2f, 1.0f);
                 }
+
                 if (ImGui.button("Game", 80, 0)) {
                     context.getEngine().getEditorUI().setShowGameView(true);
                 }
+
                 if (showGame) {
                     ImGui.popStyleColor();
                 }
 
                 ImGui.sameLine();
+
                 boolean showScene = !showGame;
                 if (showScene) {
                     ImGui.pushStyleColor(ImGuiCol.Button, 0.2f, 0.7f, 0.2f, 1.0f);
                 }
+
                 if (ImGui.button("Scene", 80, 0)) {
                     context.getEngine().getEditorUI().setShowGameView(false);
                 }
+
                 if (showScene) {
                     ImGui.popStyleColor();
+                }
+
+                if (showGame) {
+                    ImGui.sameLine();
+
+                    int selectedDisplay = context.getEngine().getEditorUI().getGamePanel().getSelectedDisplay();
+                    int maxDisplays = context.getEngine().getEditorUI().getGamePanel().getMaxDisplays();
+
+                    ImGui.setNextItemWidth(120.0f);
+
+                    String currentDisplayLabel = "Display " + selectedDisplay;
+
+                    if (ImGui.beginCombo("##TopDisplaySelector", currentDisplayLabel)) {
+                        for (int i = 1; i <= maxDisplays; i++) {
+                            boolean selected = selectedDisplay == i;
+
+                            if (ImGui.selectable("Display " + i, selected)) {
+                                context.getEngine().getEditorUI().getGamePanel().setSelectedDisplay(i);
+                            }
+
+                            if (selected) {
+                                ImGui.setItemDefaultFocus();
+                            }
+                        }
+
+                        ImGui.endCombo();
+                    }
                 }
             }
         }

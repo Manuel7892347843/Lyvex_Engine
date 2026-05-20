@@ -28,6 +28,7 @@ public class SceneRenderer {
     private final int viewportHeight;
     private final EditorCamera2D editorCamera = new EditorCamera2D();
     private boolean useSceneCamera = false;
+    private int targetDisplay = 1;
     private int shaderProgram;
     private int vao;
     private int vbo;
@@ -47,6 +48,14 @@ public class SceneRenderer {
 
     public void setUseSceneCamera(boolean use) {
         this.useSceneCamera = use;
+    }
+
+    public void setTargetDisplay(int targetDisplay) {
+        this.targetDisplay = Math.max(1, targetDisplay);
+    }
+
+    public int getTargetDisplay() {
+        return targetDisplay;
     }
 
     public boolean isUsingSceneCamera() {
@@ -110,7 +119,7 @@ public class SceneRenderer {
 
         matrix4f viewProj;
         if (useSceneCamera) {
-            Camera sceneCamera = findPrimaryCamera();
+            Camera sceneCamera = findCameraForDisplay(targetDisplay);
             if (sceneCamera != null) {
                 viewProj = sceneCamera.getViewProjectionMatrix(viewportWidth, viewportHeight);
             } else {
@@ -188,15 +197,63 @@ public class SceneRenderer {
         return ProjectSettings.getSortingLayerManager().getLayerPriority(layerName);
     }
 
-    private Camera findPrimaryCamera() {
+    private Camera findCameraForDisplay(int display) {
         if (scene == null) return null;
+
+        Camera fallbackPrimary = null;
+
         for (GameObject go : scene.getRootObjects()) {
-            Camera cam = go.getComponent(Camera.class);
-            if (cam != null && cam.primary) return cam;
-            Camera childCam = findCameraInChildren(go);
-            if (childCam != null) return childCam;
+            Camera camera = findCameraForDisplayRecursive(go, display);
+
+            if (camera != null) {
+                return camera;
+            }
+
+            if (fallbackPrimary == null) {
+                fallbackPrimary = findPrimaryCameraRecursive(go);
+            }
         }
+
+        return display == 1 ? fallbackPrimary : null;
+    }
+
+    private Camera findCameraForDisplayRecursive(GameObject gameObject, int display) {
+        Camera camera = gameObject.getComponent(Camera.class);
+
+        if (camera != null && camera.primary && camera.targetDisplay == display) {
+            return camera;
+        }
+
+        for (GameObject child : gameObject.getChildren()) {
+            Camera found = findCameraForDisplayRecursive(child, display);
+            if (found != null) {
+                return found;
+            }
+        }
+
         return null;
+    }
+
+    private Camera findPrimaryCameraRecursive(GameObject gameObject) {
+        Camera camera = gameObject.getComponent(Camera.class);
+
+        if (camera != null && camera.primary) {
+            return camera;
+        }
+
+        for (GameObject child : gameObject.getChildren()) {
+            Camera found = findPrimaryCameraRecursive(child);
+            if (found != null) {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    /*
+    private Camera findPrimaryCamera() {
+        return findCameraForDisplay(1);
     }
 
     private Camera findCameraInChildren(GameObject parent) {
@@ -208,6 +265,7 @@ public class SceneRenderer {
         }
         return null;
     }
+     */
 
     private matrix4f getEditorCameraMatrix() {
         matrix4f view = new matrix4f()
