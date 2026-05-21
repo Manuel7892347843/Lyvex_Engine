@@ -31,8 +31,16 @@ public class GamePanel implements EditorPanel {
         boolean isOpen = ImGui.begin("Game", ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoResize);
 
         if (isOpen) {
+            float imageX = ImGui.getCursorScreenPosX();
+            float imageY = ImGui.getCursorScreenPosY();
             float availableWidth = ImGui.getContentRegionAvailX();
             float availableHeight = ImGui.getContentRegionAvailY();
+
+            context.setGameViewportX(imageX);
+            context.setGameViewportY(imageY);
+            context.setGameViewportWidth(availableWidth);
+            context.setGameViewportHeight(availableHeight);
+            context.setGameHovered(ImGui.isWindowHovered());
 
             if (gameTextureId != 0) {
                 ImGui.image(gameTextureId, availableWidth, availableHeight, 0, 1, 1, 0);

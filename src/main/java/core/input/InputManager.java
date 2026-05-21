@@ -1,5 +1,6 @@
 package core.input;
 
+import static org.lwjgl.glfw.GLFW.*;
 import org.lwjgl.glfw.GLFWCursorPosCallback;
 import org.lwjgl.glfw.GLFWKeyCallback;
 import org.lwjgl.glfw.GLFWMouseButtonCallback;
@@ -13,6 +14,7 @@ import static org.lwjgl.glfw.GLFW.glfwSetMouseButtonCallback;
 import static org.lwjgl.glfw.GLFW.glfwSetScrollCallback;
 
 public class InputManager {
+    private static long window;
     private static final int KEY_COUNT = 512;
     private static final int MOUSE_BUTTON_COUNT = 32;
 
@@ -23,6 +25,8 @@ public class InputManager {
     private static final boolean[] mouseButtonsDown = new boolean[MOUSE_BUTTON_COUNT];
     private static final boolean[] mouseButtonsPressed = new boolean[MOUSE_BUTTON_COUNT];
     private static final boolean[] mouseButtonsReleased = new boolean[MOUSE_BUTTON_COUNT];
+    private static final boolean[] keys = new boolean[GLFW_KEY_LAST + 1];
+    private static final boolean[] mouseButtons = new boolean[GLFW_MOUSE_BUTTON_LAST + 1];
 
     private static double mouseX;
     private static double mouseY;
@@ -42,7 +46,8 @@ public class InputManager {
     private InputManager() {
     }
 
-    public static void init(long window) {
+    public static void init(long windowHandle) {
+        window = windowHandle;
         keyCallback = new GLFWKeyCallback() {
             @Override
             public void invoke(long window, int key, int scancode, int action, int mods) {
@@ -97,6 +102,39 @@ public class InputManager {
         glfwSetCursorPosCallback(window, cursorPosCallback);
         glfwSetMouseButtonCallback(window, mouseButtonCallback);
         glfwSetScrollCallback(window, scrollCallback);
+
+        glfwSetCursorPosCallback(window, (targetWindow, x, y) -> {
+            mouseX = x;
+            mouseY = y;
+        });
+
+        glfwSetMouseButtonCallback(window, (targetWindow, button, action, mods) -> {
+            if (button >= 0 && button < mouseButtons.length) {
+                mouseButtons[button] = action != GLFW_RELEASE;
+            }
+        });
+
+        glfwSetScrollCallback(window, (targetWindow, xOffset, yOffset) -> {
+            scrollY += (float) yOffset;
+        });
+    }
+
+    public static void update() {
+        if (window == 0) {
+            return;
+        }
+
+        double[] x = new double[1];
+        double[] y = new double[1];
+
+        glfwGetCursorPos(window, x, y);
+
+        mouseX = x[0];
+        mouseY = y[0];
+
+        for (int i = 0; i < mouseButtons.length; i++) {
+            mouseButtons[i] = glfwGetMouseButton(window, i) == GLFW_PRESS;
+        }
     }
 
     public static void endFrame() {

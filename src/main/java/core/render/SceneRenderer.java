@@ -7,11 +7,18 @@ import core.component.EditorCamera2D;
 import core.component.sprite.Sprite;
 import core.component.sprite.SpriteComponent;
 import core.component.tilemap.Tilemap;
+import core.component.ui.color.UIColor;
+import core.component.ui.uiElements.UIButton;
+import core.component.ui.uiElements.UIImage;
+import core.component.ui.uiElements.UIPanel;
+import core.component.ui.uiElements.UIText;
 import core.gameobject.GameObject;
 import core.input.InputManager;
 import core.math.matrix4f;
 import core.scene.Scene;
 import ui.EditorContext;
+
+import core.component.ui.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +39,14 @@ public class SceneRenderer {
     private int shaderProgram;
     private int vao;
     private int vbo;
+
+    private static class UIRenderable {
+        Canvas canvas;
+        GameObject gameObject;
+        UIElement element;
+        int canvasOrder;
+        int elementOrder;
+    }
 
     private Scene scene;
 
@@ -161,8 +176,225 @@ public class SceneRenderer {
             }
         }
 
+        renderUI(modelLocation, vpLocation);
+
         glBindVertexArray(0);
         glUseProgram(0);
+    }
+
+    private void renderUI(int modelLocation, int vpLocation) {
+        List<UIRenderable> uiRenderables = new ArrayList<>();
+
+        for (GameObject root : scene.getRootObjects()) {
+            collectUIRenderables(root, null, uiRenderables);
+        }
+
+        uiRenderables.sort((a, b) -> {
+            if (a.canvasOrder != b.canvasOrder) {
+                return Integer.compare(a.canvasOrder, b.canvasOrder);
+            }
+
+            return Integer.compare(a.elementOrder, b.elementOrder);
+        });
+
+        matrix4f uiProjection = new matrix4f().ortho(
+                0.0f,
+                viewportWidth,
+                0.0f,
+                viewportHeight,
+                -100.0f,
+                100.0f
+        );
+
+        if (vpLocation != -1) {
+            float[] vpArray = new float[16];
+            uiProjection.get(vpArray);
+            glUniformMatrix4fv(vpLocation, false, vpArray);
+        }
+
+        EditorContext context = EditorContext.getInstance();
+
+        float viewportScreenX = useSceneCamera ? context.getGameViewportX() : context.getSceneViewportX();
+        float viewportScreenY = useSceneCamera ? context.getGameViewportY() : context.getSceneViewportY();
+        float viewportScreenWidth = useSceneCamera ? context.getGameViewportWidth() : context.getSceneViewportWidth();
+        float viewportScreenHeight = useSceneCamera ? context.getGameViewportHeight() : context.getSceneViewportHeight();
+        boolean viewportHovered = useSceneCamera ? context.isGameHovered() : context.isSceneHovered();
+
+        float mouseX = InputManager.getMouseX();
+        float mouseY = InputManager.getMouseY();
+
+        boolean mouseInsideViewport =
+                viewportHovered
+                        && mouseX >= viewportScreenX
+                        && mouseX <= viewportScreenX + viewportScreenWidth
+                        && mouseY >= viewportScreenY
+                        && mouseY <= viewportScreenY + viewportScreenHeight;
+
+        float framebufferMouseX = -999999.0f;
+        float framebufferMouseY = -999999.0f;
+
+        if (mouseInsideViewport && viewportScreenWidth > 0 && viewportScreenHeight > 0) {
+            float localMouseX = mouseX - viewportScreenX;
+            float localMouseY = mouseY - viewportScreenY;
+
+            framebufferMouseX = localMouseX * ((float) viewportWidth / viewportScreenWidth);
+            framebufferMouseY = viewportHeight - localMouseY * ((float) viewportHeight / viewportScreenHeight);
+        }
+
+        for (UIRenderable renderable : uiRenderables) {
+            Canvas canvas = renderable.canvas;
+            UIElement element = renderable.element;
+
+            if (!element.isVisible()) {
+                continue;
+            }
+
+            if (!useSceneCamera && !canvas.isVisibleInSceneView()) {
+                continue;
+            }
+
+            float scaleX = canvas.getScaleX(viewportWidth);
+            float scaleY = canvas.getScaleY(viewportHeight);
+
+            float uiMouseX = framebufferMouseX / scaleX;
+            float uiMouseY = framebufferMouseY / scaleY;
+
+            if (element instanceof UIButton button) {
+                button.processInput(uiMouseX, uiMouseY);
+                renderButton(button, scaleX, scaleY, modelLocation);
+            } else if (element instanceof UIImage image) {
+                renderImage(image, scaleX, scaleY, modelLocation);
+            } else if (element instanceof UIText text) {
+                renderText(text, scaleX, scaleY, modelLocation);
+            } else if (element instanceof UIPanel panel) {
+                renderPanel(panel, scaleX, scaleY, modelLocation);
+            }
+        }
+    }
+
+    private void collectUIRenderables(GameObject gameObject, Canvas currentCanvas, List<UIRenderable> list) {
+        if (!gameObject.isActive()) {
+            return;
+        }
+
+        Canvas canvas = gameObject.getComponent(Canvas.class);
+        if (canvas != null) {
+            currentCanvas = canvas;
+        }
+
+        UIElement element = gameObject.getComponent(UIElement.class);
+        if (currentCanvas != null && element != null) {
+            UIRenderable renderable = new UIRenderable();
+            renderable.canvas = currentCanvas;
+            renderable.gameObject = gameObject;
+            renderable.element = element;
+            renderable.canvasOrder = currentCanvas.getSortingOrder();
+            renderable.elementOrder = element.getOrder();
+            list.add(renderable);
+        }
+
+        for (GameObject child : gameObject.getChildren()) {
+            collectUIRenderables(child, currentCanvas, list);
+        }
+    }
+
+    private void renderPanel(UIPanel panel, float scaleX, float scaleY, int modelLocation) {
+        renderColoredQuad(
+                panel.getX() * scaleX,
+                panel.getY() * scaleY,
+                panel.getWidth() * scaleX,
+                panel.getHeight() * scaleY,
+                panel.getPivotX(),
+                panel.getPivotY(),
+                panel.getColor(),
+                modelLocation
+        );
+    }
+
+    private void renderImage(UIImage image, float scaleX, float scaleY, int modelLocation) {
+        renderTexturedQuad(
+                image.getX() * scaleX,
+                image.getY() * scaleY,
+                image.getWidth() * scaleX,
+                image.getHeight() * scaleY,
+                image.getPivotX(),
+                image.getPivotY(),
+                image.getTint(),
+                image.getSprite() == null ? 0 : image.getSprite().getTextureId(),
+                modelLocation
+        );
+    }
+
+    private void renderText(UIText text, float scaleX, float scaleY, int modelLocation) {
+        if (text.getSprite() == null) {
+            return;
+        }
+
+        renderTexturedQuad(
+                text.getX() * scaleX,
+                text.getY() * scaleY,
+                text.getWidth() * scaleX,
+                text.getHeight() * scaleY,
+                text.getPivotX(),
+                text.getPivotY(),
+                UIColor.white(),
+                text.getSprite().getTextureId(),
+                modelLocation
+        );
+    }
+
+    private void renderButton(UIButton button, float scaleX, float scaleY, int modelLocation) {
+        int textureId = button.getCurrentSprite() == null ? 0 : button.getCurrentSprite().getTextureId();
+
+        renderTexturedQuad(
+                button.getX() * scaleX,
+                button.getY() * scaleY,
+                button.getWidth() * scaleX,
+                button.getHeight() * scaleY,
+                button.getPivotX(),
+                button.getPivotY(),
+                button.getCurrentColor(),
+                textureId,
+                modelLocation
+        );
+    }
+
+    private void renderColoredQuad(float x, float y, float width, float height, float pivotX, float pivotY, UIColor color, int modelLocation) {
+        renderTexturedQuad(x, y, width, height, pivotX, pivotY, color, 0, modelLocation);
+    }
+
+    private void renderTexturedQuad(float x, float y, float width, float height, float pivotX, float pivotY, UIColor color, int textureId, int modelLocation) {
+        matrix4f model = new matrix4f()
+                .translate(x - width * pivotX + width * 0.5f, y - height * pivotY + height * 0.5f, 0.0f)
+                .scale(width, height, 1.0f);
+
+        if (modelLocation != -1) {
+            float[] modelArray = new float[16];
+            model.get(modelArray);
+            glUniformMatrix4fv(modelLocation, false, modelArray);
+        }
+
+        int uvOffsetLoc = glGetUniformLocation(shaderProgram, "uUVOffset");
+        int uvScaleLoc = glGetUniformLocation(shaderProgram, "uUVScale");
+        int colorLoc = glGetUniformLocation(shaderProgram, "uColor");
+        int useTextureLoc = glGetUniformLocation(shaderProgram, "uUseTexture");
+
+        if (uvOffsetLoc != -1) glUniform2f(uvOffsetLoc, 0, 0);
+        if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1, 1);
+        if (colorLoc != -1) glUniform4f(colorLoc, color.r, color.g, color.b, color.a);
+        if (useTextureLoc != -1) glUniform1i(useTextureLoc, textureId != 0 ? 1 : 0);
+
+        if (textureId != 0) {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, textureId);
+        } else {
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
+
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        if (colorLoc != -1) glUniform4f(colorLoc, 1, 1, 1, 1);
+        if (useTextureLoc != -1) glUniform1i(useTextureLoc, 1);
     }
 
     private void collectRenderables(GameObject gameObject, List<Renderable> list) {
@@ -444,11 +676,15 @@ public class SceneRenderer {
                         "in vec2 vUV;\n" +
                         "out vec4 FragColor;\n" +
                         "uniform sampler2D uTexture;\n" +
+                        "uniform vec4 uColor;\n" +
+                        "uniform int uUseTexture;\n" +
                         "void main() {\n" +
-                        "    FragColor = texture(uTexture, vUV);\n" +
+                        "    vec4 baseColor = uUseTexture == 1 ? texture(uTexture, vUV) : vec4(1.0);\n" +
+                        "    FragColor = baseColor * uColor;\n" +
                         "}";
 
         int vertexShader = glCreateShader(GL_VERTEX_SHADER);
+
         glShaderSource(vertexShader, vertexShaderSource);
         glCompileShader(vertexShader);
         if (glGetShaderi(vertexShader, GL_COMPILE_STATUS) == 0) {
@@ -473,6 +709,9 @@ public class SceneRenderer {
 
         glUseProgram(shaderProgram);
         glUniform1i(glGetUniformLocation(shaderProgram, "uTexture"), 0);
+        glUniform4f(glGetUniformLocation(shaderProgram, "uColor"), 1, 1, 1, 1);
+        glUniform1i(glGetUniformLocation(shaderProgram, "uUseTexture"), 1);
+        glUseProgram(0);
         glUseProgram(0);
 
         glDeleteShader(vertexShader);

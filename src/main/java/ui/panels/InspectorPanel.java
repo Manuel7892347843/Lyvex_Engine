@@ -2,6 +2,7 @@ package ui.panels;
 
 import core.assetmanager.AssetManager;
 import core.component.tilemap.Tilemap;
+import core.component.ui.color.UIColor;
 import core.gameobject.GameObject;
 import core.math.vector2D;
 import core.math.vector2f;
@@ -12,6 +13,7 @@ import core.component.Component;
 import core.component.sprite.Sprite;
 import core.component.sprite.SpriteComponent;
 import core.component.Transform;
+import core.component.ui.uiElements.UIText;
 import imgui.ImGui;
 import imgui.ImVec2;
 import imgui.flag.ImGuiCol;
@@ -39,6 +41,7 @@ public class InspectorPanel implements EditorPanel {
     private final int HEIGHT = 637;
 
     private SpriteComponent spritePickerTarget;
+    private UIText fontPickerTarget;
     private Tilemap editingTilemap = null;
     private int selectedTileId = 1;
     private float paletteZoom = 1.0f;
@@ -123,6 +126,10 @@ public class InspectorPanel implements EditorPanel {
 
             drawComponentFields(component, context);
 
+            if (component instanceof UIText text) {
+                drawUITextFontField(text, context);
+            }
+
             if (component instanceof SpriteComponent spriteComponent) {
                 drawSpriteField(spriteComponent, context);
 
@@ -162,6 +169,7 @@ public class InspectorPanel implements EditorPanel {
         }
 
         drawSpritePickerPopup(context);
+        drawFontPickerPopup(context);
 
         ImGui.end();
 
@@ -207,6 +215,25 @@ public class InspectorPanel implements EditorPanel {
                         vec.x = v[0];
                         vec.y = v[1];
                         vec.z = v[2];
+                        context.setSceneDirty(true);
+                    }
+                    continue;
+                }
+
+                if(type == UIColor.class || type.getSimpleName().equals("UIColor")){
+                    UIColor color = (UIColor)value;
+                    if(color == null){
+                        color = new UIColor(1, 1, 1, 1);
+                        field.set(component, color);
+                    }
+
+                    float[] c = { color.r, color.g, color.b, color.a };
+                    if(ImGui.colorEdit4(fieldName, c)){
+                        color.r = clamp01(c[0]);
+                        color.g = clamp01(c[1]);
+                        color.b = clamp01(c[2]);
+                        color.a = clamp01(c[3]);
+                        field.set(component, color);
                         context.setSceneDirty(true);
                     }
                     continue;
@@ -322,6 +349,72 @@ public class InspectorPanel implements EditorPanel {
 
             ImGui.endPopup();
         }
+    }
+
+    private void drawUITextFontField(UIText text, EditorContext context) {
+        ImGui.separator();
+        ImGui.text("Font");
+
+        String fontPath = text.getFontAssetPath();
+        if (fontPath == null || fontPath.isBlank()) {
+            ImGui.text("Selected Font Asset: None");
+            ImGui.textDisabled("Using system font: " + text.getFontName());
+        } else {
+            ImGui.text("Selected Font Asset:");
+            ImGui.textWrapped(fontPath);
+        }
+
+        if (ImGui.button("Choose Font")) {
+            fontPickerTarget = text;
+            ImGui.openPopup("FontPickerPopup");
+        }
+
+        ImGui.sameLine();
+
+        if (ImGui.button("Clear Font")) {
+            text.setFontAssetPath("");
+            context.setSceneDirty(true);
+        }
+    }
+
+    private void drawFontPickerPopup(EditorContext context) {
+        if (ImGui.beginPopup("FontPickerPopup")) {
+            Path assetsRoot = AssetManager.getAssetPath();
+
+            ImGui.text("Select a font from Assets");
+            ImGui.separator();
+
+            try (Stream<Path> paths = Files.walk(assetsRoot)) {
+                paths.filter(Files::isRegularFile)
+                        .filter(this::isFontFile)
+                        .forEach(path -> {
+                            String relative = assetsRoot.relativize(path).toString().replace('\\', '/');
+
+                            if (ImGui.selectable(relative)) {
+                                if (fontPickerTarget != null) {
+                                    fontPickerTarget.setFontAssetPath(relative);
+                                }
+
+                                context.setSceneDirty(true);
+                                ImGui.closeCurrentPopup();
+                            }
+                        });
+            } catch (IOException e) {
+                ImGui.text("Failed to read assets folder");
+            }
+
+            if (ImGui.button("Close")) {
+                ImGui.closeCurrentPopup();
+            }
+
+            ImGui.endPopup();
+        }
+    }
+
+    private boolean isFontFile(Path path) {
+        String name = path.getFileName().toString().toLowerCase();
+        return name.endsWith(".ttf")
+                || name.endsWith(".otf");
     }
 
     private void drawTilemapEditor(Tilemap tilemap, EditorContext context) {
@@ -599,6 +692,10 @@ public class InspectorPanel implements EditorPanel {
                 || name.endsWith(".jpeg")
                 || name.endsWith(".bmp")
                 || name.endsWith(".gif");
+    }
+
+    private float clamp01(float value) {
+        return Math.max(0.0f, Math.min(1.0f, value));
     }
 
     @Override

@@ -1,7 +1,6 @@
 package core.scriptutil;
 
 import core.ProjectManager;
-import core.assetmanager.AssetManager;
 import core.component.*;
 
 import javax.tools.JavaCompiler;
@@ -18,6 +17,11 @@ import java.util.List;
 import java.util.stream.Stream;
 import core.component.sprite.SpriteComponent;
 import core.component.tilemap.Tilemap;
+import core.component.ui.Canvas;
+import core.component.ui.uiElements.UIButton;
+import core.component.ui.uiElements.UIImage;
+import core.component.ui.uiElements.UIPanel;
+import core.component.ui.uiElements.UIText;
 
 public class ScriptComponentRegistry {
     private static final List<Class<? extends Component>> COMPONENT_CLASSES = new ArrayList<>();
@@ -32,6 +36,13 @@ public class ScriptComponentRegistry {
         COMPONENT_CLASSES.add(Tilemap.class);
         COMPONENT_CLASSES.add(AudioSource.class);
         COMPONENT_CLASSES.add(AudioDistanceAttenuation.class);
+
+        //UI
+        COMPONENT_CLASSES.add(Canvas.class);
+        COMPONENT_CLASSES.add(UIPanel.class);
+        COMPONENT_CLASSES.add(UIText.class);
+        COMPONENT_CLASSES.add(UIImage.class);
+        COMPONENT_CLASSES.add(UIButton.class);
 
         Path scriptsRoot = ProjectManager.getScriptsPath();
         if (scriptsRoot == null || !Files.exists(scriptsRoot)) {

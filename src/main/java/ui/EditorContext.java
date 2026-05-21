@@ -17,6 +17,12 @@ public final class EditorContext {
     private float sceneViewportHeight;
     private boolean sceneHovered;
 
+    private float gameViewportX;
+    private float gameViewportY;
+    private float gameViewportWidth;
+    private float gameViewportHeight;
+    private boolean gameHovered;
+
     private Scene currentScene;
     private List<Runnable> sceneChangeListeners = new ArrayList<>();
     private GameObject selectedGameObject;
@@ -117,4 +123,43 @@ public final class EditorContext {
         this.engine = engine;
     }
 
+    public float getGameViewportX() {
+        return gameViewportX;
+    }
+
+    public void setGameViewportX(float gameViewportX) {
+        this.gameViewportX = gameViewportX;
+    }
+
+    public float getGameViewportY() {
+        return gameViewportY;
+    }
+
+    public void setGameViewportY(float gameViewportY) {
+        this.gameViewportY = gameViewportY;
+    }
+
+    public float getGameViewportWidth() {
+        return gameViewportWidth;
+    }
+
+    public void setGameViewportWidth(float gameViewportWidth) {
+        this.gameViewportWidth = gameViewportWidth;
+    }
+
+    public float getGameViewportHeight() {
+        return gameViewportHeight;
+    }
+
+    public void setGameViewportHeight(float gameViewportHeight) {
+        this.gameViewportHeight = gameViewportHeight;
+    }
+
+    public boolean isGameHovered() {
+        return gameHovered;
+    }
+
+    public void setGameHovered(boolean gameHovered) {
+        this.gameHovered = gameHovered;
+    }
 }

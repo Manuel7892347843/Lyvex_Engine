@@ -119,6 +119,7 @@ public class Engine {
             lastFrameTime = currentTime;
 
             glfwPollEvents();
+            InputManager.update();
             imguiLayer.startFrame();
 
             if (isInPlayMode && !isInitialized) {
