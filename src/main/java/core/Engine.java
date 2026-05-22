@@ -7,6 +7,8 @@ import core.component.Component;
 import core.gameobject.GameObject;
 import core.input.InputManager;
 import core.lib.SceneManager;
+import core.lib.Time;
+import core.lib.Timer;
 import core.render.FrameBuffer;
 import core.render.GameFrameBuffer;
 import core.render.SceneRenderer;
@@ -39,7 +41,7 @@ public class Engine {
     private boolean isInitialized = false;
 
     private static float deltaTime = 0.0f;
-    private double lastFrameTime = 0.0;
+    private static double lastFrameTime = 0.0;
 
     private long window;
     private EditorUI editorUI;
@@ -120,6 +122,7 @@ public class Engine {
 
             glfwPollEvents();
             InputManager.update();
+            Timer.update();
             imguiLayer.startFrame();
 
             if (isInPlayMode && !isInitialized) {

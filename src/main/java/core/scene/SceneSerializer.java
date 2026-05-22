@@ -2,7 +2,6 @@ package core.scene;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import core.ProjectManager;
 import core.component.Transform;
 import core.component.tilemap.Tilemap;
 import core.component.ui.color.UIColor;
@@ -10,7 +9,7 @@ import core.component.ui.uiElements.UIButton;
 import core.component.ui.uiElements.UIImage;
 import core.component.ui.uiElements.UIPanel;
 import core.component.ui.uiElements.UIText;
-import core.math.vector2D;
+import core.lib.math.vector2D;
 import core.scriptutil.ScriptComponentRegistry;
 import core.component.sprite.SpriteLoader;
 import core.assetmanager.AssetManager;
@@ -22,7 +21,6 @@ import core.gameobject.GameObject;
 import core.gameobject.GameObjectData;
 import ui.EditorContext;
 
-import java.awt.*;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;

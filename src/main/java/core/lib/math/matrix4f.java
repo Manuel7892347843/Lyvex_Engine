@@ -1,4 +1,4 @@
-package core.math;
+package core.lib.math;
 
 public class matrix4f {
     private final float[] m = new float[16];

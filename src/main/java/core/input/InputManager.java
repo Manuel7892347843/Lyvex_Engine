@@ -6,6 +6,9 @@ import org.lwjgl.glfw.GLFWKeyCallback;
 import org.lwjgl.glfw.GLFWMouseButtonCallback;
 import org.lwjgl.glfw.GLFWScrollCallback;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static org.lwjgl.glfw.GLFW.GLFW_PRESS;
 import static org.lwjgl.glfw.GLFW.GLFW_RELEASE;
 import static org.lwjgl.glfw.GLFW.glfwSetCursorPosCallback;
@@ -195,6 +198,155 @@ public class InputManager {
 
     public static float getScrollY() {
         return (float) scrollY;
+    }
+
+    private static final Map<String, InputAxis> axes = new HashMap<>();
+    private static final Map<String, InputAction> actions = new HashMap<>();
+
+    public static void registerAxis(InputAxis axis) {
+        axes.put(axis.name, axis);
+    }
+
+    public static void registerAction(InputAction action) {
+        actions.put(action.name, action);
+    }
+
+    public static void removeAxis(String name) {
+        axes.remove(name);
+    }
+
+    public static void removeAction(String name) {
+        actions.remove(name);
+    }
+
+    public static Map<String, InputAxis> getAxes() {
+        return new HashMap<>(axes);
+    }
+
+    public static Map<String, InputAction> getActions() {
+        return new HashMap<>(actions);
+    }
+
+    public static float getAxisValue(String axisName) {
+        InputAxis axis = axes.get(axisName);
+        if (axis == null) return 0f;
+
+        float value = 0f;
+        for (InputAxis.AxisBinding binding : axis.bindings) {
+            float bindingValue = getAxisBindingValue(binding);
+            if (binding.positive) value += bindingValue;
+            else value -= bindingValue;
+        }
+
+        value = Math.max(-1f, Math.min(1f, value));
+
+        if (Math.abs(value) < axis.deadZone) value = 0f;
+        if (axis.invert) value = -value;
+
+        return value * axis.sensitivity;
+    }
+
+    public static boolean isActionPressed(String actionName) {
+        InputAction action = actions.get(actionName);
+        if (action == null) return false;
+
+        for (InputAction.ActionBinding binding : action.bindings) {
+            if (checkActionBinding(binding)) return true;
+        }
+        return false;
+    }
+
+    public static boolean isActionDown(String actionName) {
+        InputAction action = actions.get(actionName);
+        if (action == null) return false;
+
+        for (InputAction.ActionBinding binding : action.bindings) {
+            if (checkActionBindingDown(binding)) return true;
+        }
+        return false;
+    }
+
+    public static boolean isActionUp(String actionName) {
+        InputAction action = actions.get(actionName);
+        if (action == null) return false;
+
+        for (InputAction.ActionBinding binding : action.bindings) {
+            if (checkActionBindingUp(binding)) return true;
+        }
+        return false;
+    }
+
+    private static float getAxisBindingValue(InputAxis.AxisBinding binding) {
+        if (binding.key != null && isKeyDown(binding.key)) return 1f;
+        if (binding.mouseButton >= 0 && isMouseButtonDown(binding.mouseButton)) return 1f;
+        return 0f;
+    }
+
+    private static boolean checkActionBinding(InputAction.ActionBinding binding) {
+        if (!checkModifiers(binding)) return false;
+        if (binding.key != null) return isKeyDown(binding.key);
+        if (binding.mouseButton >= 0) return isMouseButtonDown(binding.mouseButton);
+        return false;
+    }
+
+    private static boolean checkActionBindingDown(InputAction.ActionBinding binding) {
+        if (!checkModifiers(binding)) return false;
+        if (binding.key != null) return isKeyPressed(binding.key);
+        if (binding.mouseButton >= 0) return isMouseButtonPressed(binding.mouseButton);
+        return false;
+    }
+
+    private static boolean checkActionBindingUp(InputAction.ActionBinding binding) {
+        if (!checkModifiers(binding)) return false;
+        if (binding.key != null) return isKeyReleased(binding.key);
+        if (binding.mouseButton >= 0) return isMouseButtonReleased(binding.mouseButton);
+        return false;
+    }
+
+    private static boolean checkModifiers(InputAction.ActionBinding binding) {
+        if (binding.shift && !isKeyDown(Key.LEFT_SHIFT) && !isKeyDown(Key.RIGHT_SHIFT)) return false;
+        if (binding.ctrl && !isKeyDown(Key.LEFT_CONTROL) && !isKeyDown(Key.RIGHT_CONTROL)) return false;
+        if (binding.alt && !isKeyDown(Key.LEFT_ALT) && !isKeyDown(Key.RIGHT_ALT)) return false;
+        return true;
+    }
+
+    // ========== Setup default ==========
+    public static void setupDefaultInputs() {
+        // Axis: Horizontal
+        InputAxis horizontal = new InputAxis("Horizontal");
+        horizontal.bindings.add(new InputAxis.AxisBinding(true, Key.D));
+        horizontal.bindings.add(new InputAxis.AxisBinding(true, Key.RIGHT));
+        horizontal.bindings.add(new InputAxis.AxisBinding(false, Key.A));
+        horizontal.bindings.add(new InputAxis.AxisBinding(false, Key.LEFT));
+        registerAxis(horizontal);
+
+        // Axis: Vertical
+        InputAxis vertical = new InputAxis("Vertical");
+        vertical.bindings.add(new InputAxis.AxisBinding(true, Key.W));
+        vertical.bindings.add(new InputAxis.AxisBinding(true, Key.UP));
+        vertical.bindings.add(new InputAxis.AxisBinding(false, Key.S));
+        vertical.bindings.add(new InputAxis.AxisBinding(false, Key.DOWN));
+        registerAxis(vertical);
+
+        // Action: Jump
+        InputAction jump = new InputAction("Jump");
+        jump.bindings.add(new InputAction.ActionBinding(Key.SPACE));
+        registerAction(jump);
+
+        // Action: Interact
+        InputAction interact = new InputAction("Interact");
+        interact.bindings.add(new InputAction.ActionBinding(Key.E));
+        registerAction(interact);
+
+        // Action: Attack (mouse left)
+        InputAction attack = new InputAction("Attack");
+        attack.bindings.add(new InputAction.ActionBinding(0)); // mouse button 0
+        registerAction(attack);
+
+        // Action: Sprint (shift + W)
+        InputAction sprint = new InputAction("Sprint");
+        sprint.bindings.add(new InputAction.ActionBinding(Key.W, false, false, false));
+        registerAction(sprint);
     }
 
     public static void dispose() {

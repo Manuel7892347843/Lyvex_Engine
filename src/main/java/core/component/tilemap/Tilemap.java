@@ -4,7 +4,6 @@ import core.component.Component;
 import core.component.sprite.Sprite;
 import core.component.sprite.SpriteLoader;
 import core.assetmanager.AssetManager;
-import core.math.vector2D;
 
 import java.nio.file.Path;
 import java.util.HashMap;

@@ -1,4 +1,4 @@
-package core.math;
+package core.lib.math;
 
 public class vector2f {
     public float x;

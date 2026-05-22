@@ -1,7 +1,7 @@
 package core.component;
 
 import core.Engine;
-import core.math.vector2D;
+import core.lib.math.vector2D;
 
 public class RigidBody2D extends Component{
     public float mass = 1.0f;

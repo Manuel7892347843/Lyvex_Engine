@@ -1,7 +1,7 @@
 package core.component;
 
-import core.math.matrix4f;
-import core.math.vector2D;
+import core.lib.math.matrix4f;
+import core.lib.math.vector2D;
 
 public class Camera extends Component {
     public boolean primary = true;

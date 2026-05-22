@@ -1,8 +1,7 @@
 package core.component;
 
 import core.gameobject.GameObject;
-import core.math.vector2D;
-import core.math.vector3f;
+import core.lib.math.vector2D;
 
 public class ParentFollower extends Component{
     public vector2D offset = new vector2D(2, 2);
