@@ -1,8 +1,13 @@
 package core.component.ui.uiElements;
+
+import core.assetmanager.AssetManager;
 import core.component.sprite.Sprite;
+import core.component.sprite.SpriteLoader;
 import core.component.ui.UIElement;
 import core.component.ui.color.UIColor;
 import core.input.InputManager;
+
+import java.nio.file.Path;
 
 import static org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT;
 
@@ -10,6 +15,10 @@ public class UIButton extends UIElement {
     public Sprite normalSprite;
     public Sprite hoverSprite;
     public Sprite pressedSprite;
+
+    public String normalSpritePath = "";
+    public String hoverSpritePath = "";
+    public String pressedSpritePath = "";
 
     public UIColor normalColor = new UIColor(1, 1, 1, 1);
     public UIColor hoverColor = new UIColor(0.9f, 0.9f, 0.9f, 1);
@@ -28,12 +37,32 @@ public class UIButton extends UIElement {
         return this;
     }
 
+    public String getNormalSpritePath() {
+        return normalSpritePath;
+    }
+
+    public UIButton setNormalSpritePath(String path) {
+        this.normalSpritePath = path;
+        this.normalSprite = loadSprite(path);
+        return this;
+    }
+
     public Sprite getHoverSprite() {
         return hoverSprite;
     }
 
     public UIButton setHoverSprite(Sprite hoverSprite) {
         this.hoverSprite = hoverSprite;
+        return this;
+    }
+
+    public String getHoverSpritePath() {
+        return hoverSpritePath;
+    }
+
+    public UIButton setHoverSpritePath(String path) {
+        this.hoverSpritePath = path;
+        this.hoverSprite = loadSprite(path);
         return this;
     }
 
@@ -44,6 +73,28 @@ public class UIButton extends UIElement {
     public UIButton setPressedSprite(Sprite pressedSprite) {
         this.pressedSprite = pressedSprite;
         return this;
+    }
+
+    public String getPressedSpritePath() {
+        return pressedSpritePath;
+    }
+
+    public UIButton setPressedSpritePath(String path) {
+        this.pressedSpritePath = path;
+        this.pressedSprite = loadSprite(path);
+        return this;
+    }
+
+    private Sprite loadSprite(String path) {
+        if (path == null || path.isBlank()) return null;
+        try {
+            Path realPath = AssetManager.getAssetPath().resolve(path);
+            return SpriteLoader.loadFromFile(realPath);
+        } catch (Exception e) {
+            System.err.println("[UIButton] Failed to load sprite: " + path);
+            e.printStackTrace();
+            return null;
+        }
     }
 
     public UIColor getNormalColor() {
@@ -90,11 +141,9 @@ public class UIButton extends UIElement {
         if (pressed && pressedSprite != null) {
             return pressedSprite;
         }
-
         if (hovered && hoverSprite != null) {
             return hoverSprite;
         }
-
         return normalSprite;
     }
 
@@ -102,11 +151,9 @@ public class UIButton extends UIElement {
         if (pressed) {
             return pressedColor;
         }
-
         if (hovered) {
             return hoverColor;
         }
-
         return normalColor;
     }
 

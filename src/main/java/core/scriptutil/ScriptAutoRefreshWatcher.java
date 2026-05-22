@@ -1,6 +1,7 @@
 package core.scriptutil;
 
 import core.ProjectManager;
+import core.log.Log;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -35,7 +36,7 @@ public class ScriptAutoRefreshWatcher {
             watcherThread.setDaemon(true);
             watcherThread.start();
         } catch (IOException e) {
-            throw new RuntimeException("Failed to start script watcher", e);
+            Log.logError("Failed to start script watcher: \n" + e);
         }
     }
 
@@ -100,7 +101,7 @@ public class ScriptAutoRefreshWatcher {
             try {
                 ScriptComponentRegistry.refresh();
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.logError("Failed to refresh script components: \n" + e);
             }
         }, 500, TimeUnit.MILLISECONDS);
     }
@@ -119,7 +120,7 @@ public class ScriptAutoRefreshWatcher {
         try {
             folder.register(watchService, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to register folder for watching: " + folder, e);
+            Log.logError("Failed to register folder for watching: " + folder + " Error: \n" + e);
         }
     }
 }

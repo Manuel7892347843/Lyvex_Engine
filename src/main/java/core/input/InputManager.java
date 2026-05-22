@@ -48,15 +48,13 @@ public class InputManager {
 
     public static void init(long windowHandle) {
         window = windowHandle;
+
         keyCallback = new GLFWKeyCallback() {
             @Override
             public void invoke(long window, int key, int scancode, int action, int mods) {
                 if (key < 0 || key >= KEY_COUNT) return;
-
                 if (action == GLFW_PRESS) {
-                    if (!keysDown[key]) {
-                        keysPressed[key] = true;
-                    }
+                    if (!keysDown[key]) keysPressed[key] = true;
                     keysDown[key] = true;
                 } else if (action == GLFW_RELEASE) {
                     keysDown[key] = false;
@@ -77,11 +75,8 @@ public class InputManager {
             @Override
             public void invoke(long window, int button, int action, int mods) {
                 if (button < 0 || button >= MOUSE_BUTTON_COUNT) return;
-
                 if (action == GLFW_PRESS) {
-                    if (!mouseButtonsDown[button]) {
-                        mouseButtonsPressed[button] = true;
-                    }
+                    if (!mouseButtonsDown[button]) mouseButtonsPressed[button] = true;
                     mouseButtonsDown[button] = true;
                 } else if (action == GLFW_RELEASE) {
                     mouseButtonsDown[button] = false;
@@ -102,21 +97,6 @@ public class InputManager {
         glfwSetCursorPosCallback(window, cursorPosCallback);
         glfwSetMouseButtonCallback(window, mouseButtonCallback);
         glfwSetScrollCallback(window, scrollCallback);
-
-        glfwSetCursorPosCallback(window, (targetWindow, x, y) -> {
-            mouseX = x;
-            mouseY = y;
-        });
-
-        glfwSetMouseButtonCallback(window, (targetWindow, button, action, mods) -> {
-            if (button >= 0 && button < mouseButtons.length) {
-                mouseButtons[button] = action != GLFW_RELEASE;
-            }
-        });
-
-        glfwSetScrollCallback(window, (targetWindow, xOffset, yOffset) -> {
-            scrollY += (float) yOffset;
-        });
     }
 
     public static void update() {

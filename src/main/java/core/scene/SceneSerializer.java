@@ -5,6 +5,11 @@ import com.google.gson.GsonBuilder;
 import core.ProjectManager;
 import core.component.Transform;
 import core.component.tilemap.Tilemap;
+import core.component.ui.color.UIColor;
+import core.component.ui.uiElements.UIButton;
+import core.component.ui.uiElements.UIImage;
+import core.component.ui.uiElements.UIPanel;
+import core.component.ui.uiElements.UIText;
 import core.math.vector2D;
 import core.scriptutil.ScriptComponentRegistry;
 import core.component.sprite.SpriteLoader;
@@ -17,6 +22,7 @@ import core.gameobject.GameObject;
 import core.gameobject.GameObjectData;
 import ui.EditorContext;
 
+import java.awt.*;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
@@ -109,6 +115,69 @@ public class SceneSerializer {
                 sb.append(entry.getKey()).append(":").append(entry.getValue());
             }
             data.fields.put("tiles", sb.toString());
+            return data;
+        }
+
+        if (component instanceof UIButton btn) {
+            data.fields.put("UIx", btn.getX());
+            data.fields.put("UIy", btn.getY());
+            data.fields.put("UIwidth", btn.getWidth());
+            data.fields.put("UIheight", btn.getHeight());
+            data.fields.put("UIpivotX", btn.getPivotX());
+            data.fields.put("UIpivotY", btn.getPivotY());
+            data.fields.put("UIorder", btn.getOrder());
+            data.fields.put("visible", btn.isVisible());
+            data.fields.put("normalColor", btn.getNormalColor());
+            data.fields.put("hoverColor", btn.getHoverColor());
+            data.fields.put("pressedColor", btn.getPressedColor());
+            data.fields.put("normalSpritePath", btn.getNormalSpritePath());
+            data.fields.put("hoverSpritePath", btn.getHoverSpritePath());
+            data.fields.put("pressedSpritePath", btn.getPressedSpritePath());
+
+            return data;
+        }
+
+        if(component instanceof UIPanel panel){
+            data.fields.put("UIx", panel.getX());
+            data.fields.put("UIy", panel.getY());
+            data.fields.put("UIwidth", panel.getWidth());
+            data.fields.put("UIheight", panel.getHeight());
+            data.fields.put("UIpivotX", panel.getPivotX());
+            data.fields.put("UIpivotY", panel.getPivotY());
+            data.fields.put("UIorder", panel.getOrder());
+            data.fields.put("visible", panel.isVisible());
+            data.fields.put("color", panel.getColor());
+            return data;
+        }
+
+        if(component instanceof UIText txt){
+            data.fields.put("UIx", txt.getX());
+            data.fields.put("UIy", txt.getY());
+            data.fields.put("UIwidth", txt.getWidth());
+            data.fields.put("UIheight", txt.getHeight());
+            data.fields.put("UIpivotX", txt.getPivotX());
+            data.fields.put("UIpivotY", txt.getPivotY());
+            data.fields.put("UIorder", txt.getOrder());
+            data.fields.put("visible", txt.isVisible());
+            data.fields.put("text", txt.getText());
+            data.fields.put("fontSize", txt.getFontSize());
+            data.fields.put("fontName", txt.getFontName());
+            data.fields.put("fontAssetPath", txt.getFontAssetPath());
+            data.fields.put("color", txt.getColor());
+            return data;
+        }
+
+        if (component instanceof UIImage image) {
+            data.fields.put("UIx", image.getX());
+            data.fields.put("UIy", image.getY());
+            data.fields.put("UIwidth", image.getWidth());
+            data.fields.put("UIheight", image.getHeight());
+            data.fields.put("UIpivotX", image.getPivotX());
+            data.fields.put("UIpivotY", image.getPivotY());
+            data.fields.put("UIorder", image.getOrder());
+            data.fields.put("visible", image.isVisible());
+            data.fields.put("tint", image.getTint());
+            data.fields.put("spriteAssetPath", image.getSpriteAssetPath());
             return data;
         }
 
@@ -328,6 +397,116 @@ public class SceneSerializer {
             return;
         }
 
+        if (component instanceof UIButton btn) {
+            if (fields.containsKey("UIx") && fields.get("UIx") instanceof Number n)
+                btn.setX(n.floatValue());
+            if (fields.containsKey("UIy") && fields.get("UIy") instanceof Number n)
+                btn.setY(n.floatValue());
+            if (fields.containsKey("UIwidth") && fields.get("UIwidth") instanceof Number n)
+                btn.setWidth(n.floatValue());
+            if (fields.containsKey("UIheight") && fields.get("UIheight") instanceof Number n)
+                btn.setHeight(n.floatValue());
+            if (fields.containsKey("visible") && fields.get("visible") instanceof Boolean b)
+                btn.setVisible(b);
+            if (fields.containsKey("UIorder") && fields.get("UIorder") instanceof Number n)
+                btn.setOrder(n.intValue());
+            if (fields.containsKey("UIpivotX") && fields.get("UIpivotX") instanceof Number n)
+                btn.setPivotX(n.floatValue());
+            if (fields.containsKey("UIpivotY") && fields.get("UIpivotY") instanceof Number n)
+                btn.setPivotY(n.floatValue());
+            if (fields.containsKey("normalSpritePath") && fields.get("normalSpritePath") instanceof String s)
+                btn.setNormalSpritePath(s);
+            if (fields.containsKey("hoverSpritePath") && fields.get("hoverSpritePath") instanceof String s)
+                btn.setHoverSpritePath(s);
+            if (fields.containsKey("pressedSpritePath") && fields.get("pressedSpritePath") instanceof String s)
+                btn.setPressedSpritePath(s);
+
+            btn.setNormalColor(extractUIColor(fields, "normalColor"));
+            btn.setHoverColor(extractUIColor(fields, "hoverColor"));
+            btn.setPressedColor(extractUIColor(fields, "pressedColor"));
+
+            return;
+        }
+
+        if(component instanceof UIPanel panel){
+            if (fields.containsKey("UIx") && fields.get("UIx") instanceof Number n)
+                panel.setX(n.floatValue());
+            if (fields.containsKey("UIy") && fields.get("UIy") instanceof Number n)
+                panel.setY(n.floatValue());
+            if (fields.containsKey("UIwidth") && fields.get("UIwidth") instanceof Number n)
+                panel.setWidth(n.floatValue());
+            if (fields.containsKey("UIheight") && fields.get("UIheight") instanceof Number n)
+                panel.setHeight(n.floatValue());
+            if(fields.containsKey("visible") && fields.get("visible") instanceof Boolean b)
+                panel.setVisible(b);
+            if (fields.containsKey("UIorder") && fields.get("UIorder") instanceof Number n)
+                panel.setOrder(n.intValue());
+            if (fields.containsKey("UIpivotX") && fields.get("UIpivotX") instanceof Number n)
+                panel.setPivotX(n.floatValue());
+            if (fields.containsKey("UIpivotY") && fields.get("UIpivotY") instanceof Number n)
+                panel.setPivotY(n.floatValue());
+
+            panel.setColor(extractUIColor(fields, "color"));
+
+            return;
+        }
+
+        if(component instanceof UIText txt){
+            if (fields.containsKey("UIx") && fields.get("UIx") instanceof Number n)
+                txt.setX(n.floatValue());
+            if (fields.containsKey("UIy") && fields.get("UIy") instanceof Number n)
+                txt.setY(n.floatValue());
+            if (fields.containsKey("UIwidth") && fields.get("UIwidth") instanceof Number n)
+                txt.setWidth(n.floatValue());
+            if (fields.containsKey("UIheight") && fields.get("UIheight") instanceof Number n)
+                txt.setHeight(n.floatValue());
+            if(fields.containsKey("visible") && fields.get("visible") instanceof Boolean b)
+                txt.setVisible(b);
+            if (fields.containsKey("UIorder") && fields.get("UIorder") instanceof Number n)
+                txt.setOrder(n.intValue());
+            if (fields.containsKey("UIpivotX") && fields.get("UIpivotX") instanceof Number n)
+                txt.setPivotX(n.floatValue());
+            if (fields.containsKey("UIpivotY") && fields.get("UIpivotY") instanceof Number n)
+                txt.setPivotY(n.floatValue());
+            if(fields.containsKey("text") && fields.get("text") instanceof String s)
+                txt.setText((String) fields.get("text"));
+            if(fields.containsKey("fontSize") && fields.get("fontSize") instanceof Number n)
+                txt.setFontSize(n.intValue());
+            if(fields.containsKey("fontName") && fields.get("fontName") instanceof String s)
+                txt.setFontName((String) fields.get("fontName"));
+            if(fields.containsKey("fontAssetPath") && fields.get("fontAssetPath") instanceof String s)
+                txt.setFontAssetPath((String) fields.get("fontAssetPath"));
+
+            txt.setColor(extractUIColor(fields, "color"));
+
+            return;
+        }
+
+        if (component instanceof UIImage image) {
+            if (fields.containsKey("UIx") && fields.get("UIx") instanceof Number n)
+                image.setX(n.floatValue());
+            if (fields.containsKey("UIy") && fields.get("UIy") instanceof Number n)
+                image.setY(n.floatValue());
+            if (fields.containsKey("UIwidth") && fields.get("UIwidth") instanceof Number n)
+                image.setWidth(n.floatValue());
+            if (fields.containsKey("UIheight") && fields.get("UIheight") instanceof Number n)
+                image.setHeight(n.floatValue());
+            if (fields.containsKey("visible") && fields.get("visible") instanceof Boolean b)
+                image.setVisible(b);
+            if (fields.containsKey("UIorder") && fields.get("UIorder") instanceof Number n)
+                image.setOrder(n.intValue());
+            if (fields.containsKey("UIpivotX") && fields.get("UIpivotX") instanceof Number n)
+                image.setPivotX(n.floatValue());
+            if (fields.containsKey("UIpivotY") && fields.get("UIpivotY") instanceof Number n)
+                image.setPivotY(n.floatValue());
+            if (fields.containsKey("spriteAssetPath") && fields.get("spriteAssetPath") instanceof String s)
+                image.setSpriteAssetPath(s);
+
+            image.setTint(extractUIColor(fields, "tint"));
+
+            return;
+        }
+
         for (Map.Entry<String, Object> entry : fields.entrySet()) {
             try {
                 Field field = component.getClass().getDeclaredField(entry.getKey());
@@ -347,5 +526,23 @@ public class SceneSerializer {
             } catch (Exception ignored) {
             }
         }
+    }
+
+    private static UIColor extractUIColor(Map<String, Object> fields, String key) {
+        Object value = fields.get(key);
+        if (value == null) return null;
+
+        if (value instanceof Map<?, ?> map) {
+            float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
+
+            if (map.get("r") instanceof Number n) r = n.floatValue();
+            if (map.get("g") instanceof Number n) g = n.floatValue();
+            if (map.get("b") instanceof Number n) b = n.floatValue();
+            if (map.get("a") instanceof Number n) a = n.floatValue();
+
+            return new UIColor(r, g, b, a);
+        }
+
+        return null;
     }
 }

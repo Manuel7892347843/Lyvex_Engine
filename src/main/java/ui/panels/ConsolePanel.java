@@ -31,7 +31,19 @@ public class ConsolePanel implements EditorPanel {
         }
 
         for(Log log : Logs.logs) {
-            ImGui.text(log.msg);
+            ImGui.textColored(0.7f, 0.9f, 1.0f, 1.0f, log.msg); // Normal
+        }
+
+        for(Log log : Logs.logs_warning){
+            ImGui.textColored(1.0f, 0.8f, 0.2f, 1.0f, log.msg); // Waring
+        }
+
+        for(Log log : Logs.logs_error){
+            ImGui.textColored(1.0f, 0.25f, 0.25f, 1.0f, log.msg); // Error
+        }
+
+        for(Log log : Logs.logs_success){
+            ImGui.textColored(0.2f, 0.8f, 0.2f, 1.0f, log.msg); // Success
         }
 
         optionsMenu();

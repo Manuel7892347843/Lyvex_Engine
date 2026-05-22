@@ -58,10 +58,9 @@ public class ProjectSettings {
         try {
             Files.createDirectories(projectFile.getParent());
             Files.writeString(projectFile, GSON.toJson(data));
-            Log.log("Project saved to: " + projectFile);
+            Log.logSuccess("Project saved to: " + projectFile);
         } catch (IOException e) {
-            System.err.println("Failed to save project settings");
-            e.printStackTrace();
+            Log.logError("Failed to save project settings: \n" + e);
         }
     }
 
@@ -69,7 +68,7 @@ public class ProjectSettings {
         Path projectFile = ProjectManager.getProjectFilePath();
 
         if (!Files.exists(projectFile)) {
-            Log.log("No project file found, using defaults");
+            Log.logWaring("No project file found, using defaults");
             return;
         }
 
@@ -87,7 +86,7 @@ public class ProjectSettings {
                 getSceneManager().loadFromProject(data.scenes);
             }
 
-            Log.log("Project loaded from: " + projectFile);
+            Log.logSuccess("Project loaded from: " + projectFile);
         } catch (IOException e) {
             System.err.println("Failed to load project settings");
             e.printStackTrace();

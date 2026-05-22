@@ -22,6 +22,7 @@ import core.component.ui.uiElements.UIButton;
 import core.component.ui.uiElements.UIImage;
 import core.component.ui.uiElements.UIPanel;
 import core.component.ui.uiElements.UIText;
+import core.log.Log;
 
 public class ScriptComponentRegistry {
     private static final List<Class<? extends Component>> COMPONENT_CLASSES = new ArrayList<>();
@@ -62,7 +63,7 @@ public class ScriptComponentRegistry {
             paths.filter(path -> path.toString().endsWith(".java"))
                     .forEach(path -> sourceFiles.add(path.toString()));
         } catch (IOException e) {
-            throw new RuntimeException("Failed to scan script sources", e);
+            Log.logError("Failed to scan script sources: \n" + e);
         }
 
         if (sourceFiles.isEmpty()) {
@@ -71,7 +72,7 @@ public class ScriptComponentRegistry {
 
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) {
-            throw new IllegalStateException("No Java compiler available. Run with a JDK, not a JRE.");
+            Log.logError("No Java compiler available. Run with a JDK, not a JRE.");
         }
 
         String classpath = ProjectManager.getCompiledPath().toString() + File.pathSeparator + System.getProperty("java.class.path");
@@ -85,7 +86,7 @@ public class ScriptComponentRegistry {
 
         int result = compiler.run(null, null, null, args.toArray(new String[0]));
         if (result != 0) {
-            throw new RuntimeException("Script compilation failed with exit code: " + result);
+            Log.logError("Script compilation failed with exit code: \n" + result);
         }
     }
 
@@ -101,7 +102,7 @@ public class ScriptComponentRegistry {
                         .forEach(path -> tryRegisterScriptClass(path, scriptsRoot, classLoader));
             }
         } catch (IOException e) {
-            throw new RuntimeException("Failed to load compiled components", e);
+            Log.logError("Failed to load compiled components: \n" + e);
         }
     }
 
@@ -119,7 +120,7 @@ public class ScriptComponentRegistry {
                 COMPONENT_CLASSES.add(componentClass);
             }
         } catch (ClassNotFoundException ignored) {
-            System.err.println("Could not load script class: " + className);
+            Log.logError("Could not load script class: \n" + className);
         }
     }
 

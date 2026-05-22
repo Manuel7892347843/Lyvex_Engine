@@ -364,6 +364,8 @@ public class SceneRenderer {
     }
 
     private void renderTexturedQuad(float x, float y, float width, float height, float pivotX, float pivotY, UIColor color, int textureId, int modelLocation) {
+        UIColor drawColor = color == null ? UIColor.white() : color;
+
         matrix4f model = new matrix4f()
                 .translate(x - width * pivotX + width * 0.5f, y - height * pivotY + height * 0.5f, 0.0f)
                 .scale(width, height, 1.0f);
@@ -381,7 +383,7 @@ public class SceneRenderer {
 
         if (uvOffsetLoc != -1) glUniform2f(uvOffsetLoc, 0, 0);
         if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1, 1);
-        if (colorLoc != -1) glUniform4f(colorLoc, color.r, color.g, color.b, color.a);
+        if (colorLoc != -1) glUniform4f(colorLoc, drawColor.r, drawColor.g, drawColor.b, drawColor.a);
         if (useTextureLoc != -1) glUniform1i(useTextureLoc, textureId != 0 ? 1 : 0);
 
         if (textureId != 0) {

@@ -279,7 +279,6 @@ public class MainMenuBarPanel implements EditorPanel {
 
         ImGui.separator();
 
-        // --- Aggiungi nuova scena ---
         ImGui.text("Add New Scene:");
         ImGui.inputText("##newscene", addSceneName);
         ImGui.sameLine();

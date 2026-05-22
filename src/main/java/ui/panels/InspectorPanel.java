@@ -3,6 +3,8 @@ package ui.panels;
 import core.assetmanager.AssetManager;
 import core.component.tilemap.Tilemap;
 import core.component.ui.color.UIColor;
+import core.component.ui.uiElements.UIButton;
+import core.component.ui.uiElements.UIImage;
 import core.gameobject.GameObject;
 import core.math.vector2D;
 import core.math.vector2f;
@@ -32,6 +34,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 public class InspectorPanel implements EditorPanel {
@@ -46,6 +49,9 @@ public class InspectorPanel implements EditorPanel {
     private int selectedTileId = 1;
     private float paletteZoom = 1.0f;
     private ImBoolean tilemapEditorOpen = new ImBoolean(false);
+
+    // NUOVO: target generico per lo sprite picker (UIImage / UIButton)
+    private SpritePickerTarget currentSpritePicker = null;
 
     @Override
     public void init() {
@@ -130,6 +136,7 @@ public class InspectorPanel implements EditorPanel {
                 drawUITextFontField(text, context);
             }
 
+            // ============== SPRITE COMPONENT ==============
             if (component instanceof SpriteComponent spriteComponent) {
                 drawSpriteField(spriteComponent, context);
 
@@ -146,6 +153,16 @@ public class InspectorPanel implements EditorPanel {
                     spriteComponent.setSortingOrder(order[0]);
                     context.setSceneDirty(true);
                 }
+            }
+
+            // ============== UI IMAGE ==============
+            if (component instanceof UIImage image) {
+                drawUIImageSpriteField(image, context);
+            }
+
+            // ============== UI BUTTON ==============
+            if (component instanceof UIButton button) {
+                drawUIButtonSpriteFields(button, context);
             }
 
             if (component instanceof Transform transform) {
@@ -186,6 +203,11 @@ public class InspectorPanel implements EditorPanel {
                 Class<?> type = field.getType();
                 String fieldName = field.getName();
                 Object value = field.get(component);
+
+                // Salta i campi sprite/path che gestiamo con i picker dedicati
+                if (fieldName.equals("sprite") || fieldName.endsWith("SpritePath") || fieldName.equals("spriteAssetPath")) {
+                    continue;
+                }
 
                 if(type == vector2D.class || type.getSimpleName().equals("vector2D")){
                     vector2D vec = (vector2D) value;
@@ -294,6 +316,7 @@ public class InspectorPanel implements EditorPanel {
         }
     }
 
+    // ============== SPRITE COMPONENT (esistente) ==============
     private void drawSpriteField(SpriteComponent spriteComponent, EditorContext context) {
         ImGui.separator();
         ImGui.text("Sprite");
@@ -305,12 +328,101 @@ public class InspectorPanel implements EditorPanel {
             ImGui.text("Selected: " + spritePath);
         }
 
-        if (ImGui.button("Choose Sprite")) {
+        if (ImGui.button("Choose Sprite##SpriteComponent")) {
             spritePickerTarget = spriteComponent;
+            currentSpritePicker = null;
             ImGui.openPopup("SpritePickerPopup");
         }
     }
 
+    // ============== UI IMAGE SPRITE ==============
+    private void drawUIImageSpriteField(UIImage image, EditorContext context) {
+        ImGui.separator();
+        ImGui.text("Image Sprite");
+
+        String spritePath = image.getSpriteAssetPath();
+        if (spritePath == null || spritePath.isBlank()) {
+            ImGui.text("Selected: None");
+        } else {
+            ImGui.text("Selected: " + spritePath);
+        }
+
+        if (ImGui.button("Choose Sprite##UIImage")) {
+            spritePickerTarget = null;
+            currentSpritePicker = new SpritePickerTarget(
+                    path -> image.setSpriteAssetPath(path),
+                    image.getSpriteAssetPath()
+            );
+            ImGui.openPopup("SpritePickerPopup");
+        }
+        ImGui.sameLine();
+        if (ImGui.button("Clear##UIImage")) {
+            image.setSpriteAssetPath("");
+            context.setSceneDirty(true);
+        }
+    }
+
+    // ============== UI BUTTON SPRITES ==============
+    private void drawUIButtonSpriteFields(UIButton button, EditorContext context) {
+        ImGui.separator();
+        ImGui.text("Button Sprites");
+
+        // Normal Sprite
+        ImGui.text("Normal:");
+        String normalPath = button.getNormalSpritePath();
+        ImGui.text(normalPath == null || normalPath.isBlank() ? "  None" : "  " + normalPath);
+        if (ImGui.button("Choose##BtnNormal")) {
+            spritePickerTarget = null;
+            currentSpritePicker = new SpritePickerTarget(
+                    path -> button.setNormalSpritePath(path),
+                    button.getNormalSpritePath()
+            );
+            ImGui.openPopup("SpritePickerPopup");
+        }
+        ImGui.sameLine();
+        if (ImGui.button("Clear##BtnNormal")) {
+            button.setNormalSpritePath("");
+            context.setSceneDirty(true);
+        }
+
+        // Hover Sprite
+        ImGui.text("Hover:");
+        String hoverPath = button.getHoverSpritePath();
+        ImGui.text(hoverPath == null || hoverPath.isBlank() ? "  None" : "  " + hoverPath);
+        if (ImGui.button("Choose##BtnHover")) {
+            spritePickerTarget = null;
+            currentSpritePicker = new SpritePickerTarget(
+                    path -> button.setHoverSpritePath(path),
+                    button.getHoverSpritePath()
+            );
+            ImGui.openPopup("SpritePickerPopup");
+        }
+        ImGui.sameLine();
+        if (ImGui.button("Clear##BtnHover")) {
+            button.setHoverSpritePath("");
+            context.setSceneDirty(true);
+        }
+
+        // Pressed Sprite
+        ImGui.text("Pressed:");
+        String pressedPath = button.getPressedSpritePath();
+        ImGui.text(pressedPath == null || pressedPath.isBlank() ? "  None" : "  " + pressedPath);
+        if (ImGui.button("Choose##BtnPressed")) {
+            spritePickerTarget = null;
+            currentSpritePicker = new SpritePickerTarget(
+                    path -> button.setPressedSpritePath(path),
+                    button.getPressedSpritePath()
+            );
+            ImGui.openPopup("SpritePickerPopup");
+        }
+        ImGui.sameLine();
+        if (ImGui.button("Clear##BtnPressed")) {
+            button.setPressedSpritePath("");
+            context.setSceneDirty(true);
+        }
+    }
+
+    // ============== SPRITE PICKER POPUP (modificato per supportare target generico) ==============
     private void drawSpritePickerPopup(EditorContext context) {
         if (ImGui.beginPopup("SpritePickerPopup")) {
             Path assetsRoot = AssetManager.getAssetPath();
@@ -325,8 +437,8 @@ public class InspectorPanel implements EditorPanel {
                             String relative = assetsRoot.relativize(path).toString().replace('\\', '/');
                             if (ImGui.selectable(relative)) {
                                 if (spritePickerTarget != null) {
+                                    // Vecchio sistema per SpriteComponent
                                     spritePickerTarget.setSpriteAssetPath(relative);
-
                                     try {
                                         Path realPath = assetsRoot.resolve(relative);
                                         Sprite sprite = SpriteLoader.loadFromFile(realPath);
@@ -334,6 +446,9 @@ public class InspectorPanel implements EditorPanel {
                                     } catch (Exception e) {
                                         throw new RuntimeException("Failed to load sprite: " + relative, e);
                                     }
+                                } else if (currentSpritePicker != null) {
+                                    // Nuovo sistema per UIImage/UIButton
+                                    currentSpritePicker.onSelect.accept(relative);
                                 }
                                 context.setSceneDirty(true);
                                 ImGui.closeCurrentPopup();
@@ -348,6 +463,17 @@ public class InspectorPanel implements EditorPanel {
             }
 
             ImGui.endPopup();
+        }
+    }
+
+    // ============== CLASSE HELPER PER LO SPRITE PICKER ==============
+    private static class SpritePickerTarget {
+        final Consumer<String> onSelect;
+        final String currentPath;
+
+        SpritePickerTarget(Consumer<String> onSelect, String currentPath) {
+            this.onSelect = onSelect;
+            this.currentPath = currentPath;
         }
     }
 
