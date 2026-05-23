@@ -309,16 +309,49 @@ public class Engine {
     }
 
     public static void saveCurrentScenePublic() {
-        if (currentScene == null || currentScenePath == null) {
-            throw new IllegalStateException("Cannot save: current scene or path is null");
+        if (currentScene == null) {
+            throw new IllegalStateException("Cannot save: current scene is null");
         }
 
         try {
+            if (currentScenePath == null) {
+                currentScenePath = createDefaultScenePath(currentScene);
+            }
+
+            Files.createDirectories(currentScenePath.getParent());
             SceneSerializer.save(currentScene, currentScenePath);
+            updateStartupScene(currentScenePath);
             ProjectSettings.save();
+
+            System.out.println("Scene saved: " + currentScenePath);
         } catch (IOException e) {
             throw new RuntimeException("Failed to save scene", e);
         }
+    }
+
+    private static Path createDefaultScenePath(Scene scene) throws IOException {
+        Path scenesDir = ProjectManager.getScenesPath();
+        Files.createDirectories(scenesDir);
+
+        String sceneName = scene.getName();
+        if (sceneName == null || sceneName.isBlank()) {
+            sceneName = "Untitled Scene";
+        }
+
+        String fileName = sceneName.trim().replaceAll("[^a-zA-Z0-9]", "_");
+        if (fileName.isBlank()) {
+            fileName = "Untitled_Scene";
+        }
+
+        Path scenePath = scenesDir.resolve(fileName + ".lyvexscene");
+        int counter = 1;
+
+        while (Files.exists(scenePath)) {
+            scenePath = scenesDir.resolve(fileName + "_" + counter + ".lyvexscene");
+            counter++;
+        }
+
+        return scenePath;
     }
 
     public void setEngineState(boolean enterInPlayMode) {
@@ -333,9 +366,7 @@ public class Engine {
         Path projectFile = ProjectManager.getProjectFilePath();
 
         if (!Files.exists(projectFile)) {
-            Scene defaultScene = new Scene("Untitled Scene");
-            currentScene = defaultScene;
-            EditorContext.getInstance().setCurrentScene(defaultScene);
+            createAndSaveDefaultScene("Untitled Scene");
             return;
         }
 
@@ -345,9 +376,7 @@ public class Engine {
             ProjectSettings.ProjectData data = gson.fromJson(json, ProjectSettings.ProjectData.class);
 
             if (data == null || data.startupScene == null || data.startupScene.isBlank()) {
-                Scene defaultScene = new Scene("Untitled Scene");
-                currentScene = defaultScene;
-                EditorContext.getInstance().setCurrentScene(defaultScene);
+                createAndSaveDefaultScene("Untitled Scene");
                 return;
             }
 
@@ -360,19 +389,33 @@ public class Engine {
                 currentScenePath = scenePath;
                 System.out.println("Loaded startup scene: " + data.startupScene);
             } else {
-                Scene defaultScene = new Scene(data.startupScene.replace(".lyvexscene", ""));
-                currentScene = defaultScene;
-                EditorContext.getInstance().setCurrentScene(defaultScene);
-                System.err.println("Startup scene not found: " + scenePath);
+                createAndSaveDefaultScene(data.startupScene.replace(".lyvexscene", ""));
+                System.err.println("Startup scene not found, created a new one: " + scenePath);
             }
 
         } catch (IOException e) {
             System.err.println("Failed to load project file");
             e.printStackTrace();
 
-            Scene defaultScene = new Scene("Untitled Scene");
+            createAndSaveDefaultScene("Untitled Scene");
+        }
+    }
+
+    private static void createAndSaveDefaultScene(String sceneName) {
+        try {
+            Scene defaultScene = new Scene(sceneName);
             currentScene = defaultScene;
+            currentScenePath = createDefaultScenePath(defaultScene);
+
+            Files.createDirectories(currentScenePath.getParent());
+            SceneSerializer.save(defaultScene, currentScenePath);
+            updateStartupScene(currentScenePath);
+
             EditorContext.getInstance().setCurrentScene(defaultScene);
+
+            System.out.println("Created default scene: " + currentScenePath);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create default scene", e);
         }
     }
 
@@ -449,17 +492,45 @@ public class Engine {
 
         int result = chooser.showOpenDialog(null);
         if (result != JFileChooser.APPROVE_OPTION) {
-            throw new IllegalStateException("No project selected");
+            initializeProjectSelection();
+            return;
         }
 
         Path parentDirectory = chooser.getSelectedFile().toPath();
 
         String projectName = JOptionPane.showInputDialog(null, "Project name:");
         if (projectName == null || projectName.isBlank()) {
-            throw new IllegalStateException("Invalid project name");
+            JOptionPane.showMessageDialog(
+                    null,
+                    "Invalid project name.",
+                    "Project Creation Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+            initializeProjectSelection();
+            return;
         }
 
-        ProjectManager.createProject(parentDirectory, projectName);
+        try {
+            ProjectManager.createProject(parentDirectory, projectName);
+
+            JOptionPane.showMessageDialog(
+                    null,
+                    "Project created successfully.",
+                    "Lyvex Project",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+        } catch (Exception e) {
+            e.printStackTrace();
+
+            JOptionPane.showMessageDialog(
+                    null,
+                    "Failed to create project:\n" + e.getMessage(),
+                    "Project Creation Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+
+            initializeProjectSelection();
+        }
     }
 
     private void initializeProjectSelection() {

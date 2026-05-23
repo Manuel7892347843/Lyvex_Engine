@@ -2,6 +2,7 @@ package core;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonSyntaxException;
 import core.lib.SceneManager;
 import core.log.Log;
 import core.sorting.SortingLayerManager;
@@ -69,14 +70,32 @@ public class ProjectSettings {
 
         if (!Files.exists(projectFile)) {
             Log.logWaring("No project file found, using defaults");
+            save();
             return;
         }
 
         try {
+            if (Files.size(projectFile) == 0) {
+                Log.logWaring("Project file is empty, recreating defaults");
+                save();
+                return;
+            }
+
             String json = Files.readString(projectFile);
+
+            if (json == null || json.isBlank()) {
+                Log.logWaring("Project file is blank, recreating defaults");
+                save();
+                return;
+            }
+
             ProjectData data = GSON.fromJson(json, ProjectData.class);
 
-            if (data == null) return;
+            if (data == null) {
+                Log.logWaring("Project file contains no data, using defaults");
+                save();
+                return;
+            }
 
             if (data.sortingLayers != null && !data.sortingLayers.isEmpty()) {
                 getSortingLayerManager().loadLayers(data.sortingLayers);
@@ -87,9 +106,12 @@ public class ProjectSettings {
             }
 
             Log.logSuccess("Project loaded from: " + projectFile);
-        } catch (IOException e) {
+        } catch (IOException | JsonSyntaxException e) {
             System.err.println("Failed to load project settings");
             e.printStackTrace();
+
+            Log.logWaring("Recreating project settings with defaults");
+            save();
         }
     }
 }

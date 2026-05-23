@@ -18,6 +18,7 @@ import ui.EditorContext;
 import ui.EditorPanel;
 
 import javax.swing.JFileChooser;
+import javax.swing.JOptionPane;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -54,7 +55,7 @@ public class MainMenuBarPanel implements EditorPanel {
                         openSceneDialog(context);
                     }
                     if (ImGui.menuItem("Save Scene", "Ctrl+S")) {
-                        Engine.saveCurrentScenePublic();
+                        saveSceneSafely();
                     }
                     ImGui.endMenu();
                 }
@@ -323,6 +324,23 @@ public class MainMenuBarPanel implements EditorPanel {
 
         ImGui.separator();
         ImGui.textDisabled("Tip: Master Volume controls the global listener gain.");
+    }
+
+    private void saveSceneSafely() {
+        try {
+            Engine.saveCurrentScenePublic();
+            System.out.println("Scene saved successfully.");
+        } catch (Exception e) {
+            System.err.println("Failed to save scene.");
+            e.printStackTrace();
+
+            JOptionPane.showMessageDialog(
+                    null,
+                    "Failed to save scene:\n" + e.getMessage(),
+                    "Save Scene Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
     }
 
     private void openSceneDialog(EditorContext context) {

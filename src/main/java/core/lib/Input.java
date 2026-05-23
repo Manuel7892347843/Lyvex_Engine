@@ -54,25 +54,4 @@ public final class Input {
     public static float getScrollY() {
         return InputManager.getScrollY();
     }
-
-    public static float getAxis(String axisName) {
-        return InputManager.getAxisValue(axisName);
-    }
-
-    public static float getAxisRaw(String axisName) {
-        float value = InputManager.getAxisValue(axisName);
-        return Math.abs(value) < 0.1f ? 0f : value;
-    }
-
-    public static boolean getAction(String actionName) {
-        return InputManager.isActionPressed(actionName);
-    }
-
-    public static boolean getActionDown(String actionName) {
-        return InputManager.isActionDown(actionName);
-    }
-
-    public static boolean getActionUp(String actionName) {
-        return InputManager.isActionUp(actionName);
-    }
 }

@@ -16,7 +16,16 @@ public class ProjectManager {
     }
 
     public static void createProject(Path parentDirectory, String projectName) {
-        Path newProjectRoot = parentDirectory.resolve(projectName);
+        if (parentDirectory == null) {
+            throw new IllegalArgumentException("Parent directory is null");
+        }
+
+        if (!Files.exists(parentDirectory) || !Files.isDirectory(parentDirectory)) {
+            throw new IllegalArgumentException("Invalid parent directory: " + parentDirectory);
+        }
+
+        String safeProjectName = sanitizeProjectName(projectName);
+        Path newProjectRoot = parentDirectory.resolve(safeProjectName).normalize();
 
         try {
             Files.createDirectories(newProjectRoot);
@@ -26,15 +35,29 @@ public class ProjectManager {
             Files.createDirectories(newProjectRoot.resolve("Compiled"));
             Files.createDirectories(newProjectRoot.resolve("ProjectSettings"));
 
-            Path projectFile = newProjectRoot.resolve(projectName + ".lyvex");
-            if (!Files.exists(projectFile)) {
-                Files.createFile(projectFile);
-            }
-
             projectRoot = newProjectRoot;
+
+            Path projectFile = getProjectFilePath();
+            if (!Files.exists(projectFile) || Files.size(projectFile) == 0) {
+                ProjectSettings.save();
+            }
         } catch (IOException e) {
-            throw new RuntimeException("Failed to create project", e);
+            throw new RuntimeException("Failed to create project at: " + newProjectRoot, e);
         }
+    }
+
+    private static String sanitizeProjectName(String projectName) {
+        if (projectName == null || projectName.isBlank()) {
+            throw new IllegalArgumentException("Project name is empty");
+        }
+
+        String safeName = projectName.trim().replaceAll("[\\\\/:*?\"<>|]", "_");
+
+        if (safeName.isBlank()) {
+            throw new IllegalArgumentException("Project name is invalid");
+        }
+
+        return safeName;
     }
 
     public static boolean isValidProject(Path root) {
