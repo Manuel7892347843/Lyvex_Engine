@@ -1,5 +1,15 @@
 # Lyvex Engine
 
+## Informazioni
+Versione Java: 21 TLS
+Build: Gradle
+
+## Come creare il file eseguibilie?
+1) Entrare nella directory del progetto
+2) Creare il shadow-jar o fat-jar, tramite linea di comando oppure interfaccia apposita
+3) Eseguire il comando: `powershell -ExecutionPolicy Bypass -File .\package-windows.ps1` per creare il pacchetto zippato con dentro java 21 ed i file per far eseguire il file .jar
+
+
 ## Descrizione del progetto
 
 Lyvex Engine è un motore grafico 2D sviluppato in Java con l'obiettivo di creare un ambiente base per la realizzazione di applicazioni interattive e videogiochi bidimensionali.
