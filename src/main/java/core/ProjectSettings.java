@@ -18,12 +18,14 @@ public class ProjectSettings {
 
     private static SortingLayerManager sortingLayerManager;
     private static SceneManager sceneManager;
+    private static String codeEditorPath;
 
     public static class ProjectData {
         public String projectName = "";
         public List<String> sortingLayers = new ArrayList<>();
         public List<SceneManager.SceneEntry> scenes = new ArrayList<>();
         public String startupScene = "";
+        public String codeEditorPath = "";
         public int targetFPS = 60;
     }
 
@@ -41,20 +43,28 @@ public class ProjectSettings {
         return sceneManager;
     }
 
+    public static String getCodeEditorPath() {
+        return codeEditorPath;
+    }
+
+    public static void setCodeEditorPath(String path) {
+        codeEditorPath = path;
+    }
+
     public static void save() {
         Path projectFile = ProjectManager.getProjectFilePath();
 
         ProjectData data = new ProjectData();
         data.projectName = ProjectManager.getProjectRoot().getFileName().toString();
-
         data.sortingLayers = getSortingLayerManager().getLayers();
-
         data.scenes = getSceneManager().getSceneEntries();
 
         SceneManager.SceneEntry active = getSceneManager().getActiveSceneEntry();
         if (active != null) {
             data.startupScene = active.fileName;
         }
+
+        data.codeEditorPath = codeEditorPath;
 
         try {
             Files.createDirectories(projectFile.getParent());
@@ -103,6 +113,10 @@ public class ProjectSettings {
 
             if (data.scenes != null) {
                 getSceneManager().loadFromProject(data.scenes);
+            }
+
+            if (data.codeEditorPath != null) {
+                codeEditorPath = data.codeEditorPath;
             }
 
             Log.logSuccess("Project loaded from: " + projectFile);

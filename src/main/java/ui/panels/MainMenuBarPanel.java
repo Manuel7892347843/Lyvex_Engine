@@ -20,6 +20,7 @@ import ui.EditorPanel;
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +38,7 @@ public class MainMenuBarPanel implements EditorPanel {
     private final ImString addSceneName = new ImString("", 64);
     private final float[] masterVolume = new float[]{1.0f};
     private final ImBoolean audioMuted = new ImBoolean(false);
+    private final ImString codeEditorPathInput = new ImString("", 256);
 
     @Override
     public void init(){
@@ -45,7 +47,7 @@ public class MainMenuBarPanel implements EditorPanel {
     }
 
     @Override
-    public void draw(EditorContext context) {
+    public void draw(EditorContext context) throws IOException {
         init();
         if (ImGui.beginMainMenuBar()) {
             if (ImGui.beginMenu("File")) {
@@ -73,6 +75,7 @@ public class MainMenuBarPanel implements EditorPanel {
                 }
                 if (ImGui.menuItem("Project Settings")) {
                     projectSettingsOpen.set(true);
+                    syncCodeEditorPathInput();
                 }
                 ImGui.endMenu();
             }
@@ -84,15 +87,19 @@ public class MainMenuBarPanel implements EditorPanel {
             drawProjectSettingsWindow(context);
         }
     }
+    private void syncCodeEditorPathInput() {
+        String path = ProjectSettings.getCodeEditorPath();
+        codeEditorPathInput.set(path != null ? path : "");
+    }
 
-    private void drawProjectSettingsWindow(EditorContext context) {
+    private void drawProjectSettingsWindow(EditorContext context) throws IOException {
         ImGui.setNextWindowSize(700, 500, ImGuiCond.FirstUseEver);
 
         if (ImGui.begin("Project Settings", projectSettingsOpen)) {
             float sidebarWidth = 150;
             ImGui.beginChild("SettingsSidebar", sidebarWidth, 0, true);
 
-            String[] tabs = {"Sorting Layers", "Scenes", "Audio"};
+            String[] tabs = {"Sorting Layers", "Scenes", "Audio", "Code Editor"};
             for (int i = 0; i < tabs.length; i++) {
                 if (ImGui.selectable(tabs[i], selectedSettingsTab == i)) {
                     selectedSettingsTab = i;
@@ -108,6 +115,7 @@ public class MainMenuBarPanel implements EditorPanel {
                 case 0 -> drawSortingLayersSettings(context);
                 case 1 -> drawScenesSettings(context);
                 case 2 -> drawAudioSettings(context);
+                case 3 -> drawCodeEditorSettings(context);
             }
 
             ImGui.endChild();
@@ -324,6 +332,47 @@ public class MainMenuBarPanel implements EditorPanel {
 
         ImGui.separator();
         ImGui.textDisabled("Tip: Master Volume controls the global listener gain.");
+    }
+
+    private void drawCodeEditorSettings(EditorContext context) throws IOException {
+        ImGui.text("Code Editor Settings");
+        ImGui.separator();
+
+        if (ImGui.inputText("Code Editor Path", codeEditorPathInput)) {
+            ProjectSettings.setCodeEditorPath(codeEditorPathInput.get());
+            context.setSceneDirty(true);
+        }
+
+        ImGui.sameLine();
+        if (ImGui.button("Browse...")) {
+            JFileChooser chooser = new JFileChooser();
+            chooser.setDialogTitle("Select Code Editor");
+            int result = chooser.showOpenDialog(null);
+            if (result == JFileChooser.APPROVE_OPTION) {
+                String selectedPath = chooser.getSelectedFile().getAbsolutePath();
+                codeEditorPathInput.set(selectedPath);
+                ProjectSettings.setCodeEditorPath(selectedPath);
+                context.setSceneDirty(true);
+            }
+        }
+
+        ImGui.sameLine();
+        if (ImGui.button("Open")) {
+            String path = codeEditorPathInput.get();
+            if (path == null || path.trim().isEmpty()) return;
+
+            try {
+                ProcessBuilder pb = new ProcessBuilder(path.trim(), ProjectManager.getProjectRoot().toString());
+                pb.start();
+            } catch (IOException e) {
+                JOptionPane.showMessageDialog(
+                        null,
+                        "Failed to open editor:\n" + e.getMessage(),
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE
+                );
+            }
+        }
     }
 
     private void saveSceneSafely() {

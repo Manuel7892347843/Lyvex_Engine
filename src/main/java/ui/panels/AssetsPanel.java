@@ -1,5 +1,7 @@
 package ui.panels;
 
+import core.ProjectManager;
+import core.ProjectSettings;
 import core.assetmanager.AssetManager;
 import core.scriptutil.ScriptComponentRegistry;
 import imgui.ImGui;
@@ -185,8 +187,33 @@ public class AssetsPanel implements EditorPanel {
                 } else {
                     if (ImGui.selectable("[FILE] " + name)) {
                         try {
-                            ProcessBuilder pb = new ProcessBuilder("notepad.exe", path.toString());
-                            pb.start();
+                            if (name.endsWith(".java")) {
+                                try {
+                                    String editorPath = ProjectSettings.getCodeEditorPath();
+                                    if (editorPath == null || editorPath.isEmpty()) {
+                                        ProcessBuilder pb = new ProcessBuilder("explorer.exe",
+                                                ProjectManager.getProjectRoot().toString());
+                                        pb.start();
+                                    } else {
+                                        ProcessBuilder pb = new ProcessBuilder(
+                                                editorPath,
+                                                ProjectManager.getProjectRoot().toString(),
+                                                path.toString()
+                                        );
+                                        pb.start();
+                                    }
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                            else if(name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg")){
+                                ProcessBuilder pb = new ProcessBuilder("explorer.exe", path.toString());
+                                pb.start();
+                            }
+                            else if(name.endsWith(".txt")){
+                                ProcessBuilder pb = new ProcessBuilder("notepad.exe", path.toString());
+                                pb.start();
+                            }
                         } catch (IOException e) {
                             e.printStackTrace();
                         }

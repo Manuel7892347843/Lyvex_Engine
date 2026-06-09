@@ -7,6 +7,12 @@ plugins {
 group = 'com.lyvex'
 version = '1.0'
 
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
 repositories {
     mavenCentral()
 }
@@ -61,6 +67,11 @@ jar {
     manifest {
         attributes 'Main-Class': 'Main'
     }
+}
+
+tasks.register('lyvexApiJar', Jar) {
+    archiveFileName = 'lyvex-api.jar'
+    from sourceSets.main.output
 }
 
 test {
