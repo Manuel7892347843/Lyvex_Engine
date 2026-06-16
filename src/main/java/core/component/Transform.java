@@ -2,6 +2,7 @@ package core.component;
 
 import core.lib.math.matrix4f;
 import core.lib.math.vector2D;
+import core.lib.math.vector2f;
 
 public class Transform extends Component {
     private vector2D position = new vector2D(0, 0);
@@ -16,6 +17,10 @@ public class Transform extends Component {
     }
 
     public void translate(vector2D offset) {
+        this.position = position.add(offset);
+    }
+
+    public void translate(vector2f offset) {
         this.position = position.add(offset);
     }
 

@@ -1,4 +1,4 @@
-package core.lib;
+package core.assetmanager;
 
 import core.ProjectManager;
 import core.audio.AudioClip;

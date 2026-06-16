@@ -7,6 +7,7 @@ import core.audio.AudioManager;
 import core.input.InputManager;
 import core.input.Key;
 import core.lib.SceneManager;
+import core.physics.PhysicsLayerManager;
 import core.sorting.SortingLayerManager;
 import imgui.ImGui;
 import imgui.flag.ImGuiCond;
@@ -99,7 +100,7 @@ public class MainMenuBarPanel implements EditorPanel {
             float sidebarWidth = 150;
             ImGui.beginChild("SettingsSidebar", sidebarWidth, 0, true);
 
-            String[] tabs = {"Sorting Layers", "Scenes", "Audio", "Code Editor"};
+            String[] tabs = {"Sorting Layers", "Scenes", "Audio", "Code Editor", "Physics Layers"};
             for (int i = 0; i < tabs.length; i++) {
                 if (ImGui.selectable(tabs[i], selectedSettingsTab == i)) {
                     selectedSettingsTab = i;
@@ -116,6 +117,7 @@ public class MainMenuBarPanel implements EditorPanel {
                 case 1 -> drawScenesSettings(context);
                 case 2 -> drawAudioSettings(context);
                 case 3 -> drawCodeEditorSettings(context);
+                case 4 -> drawPhysicsLayersSettings(context);
             }
 
             ImGui.endChild();
@@ -373,6 +375,150 @@ public class MainMenuBarPanel implements EditorPanel {
                 );
             }
         }
+    }
+
+    private void drawPhysicsLayersSettings(EditorContext context) {
+        ImGui.text("Physics Layers");
+        ImGui.separator();
+
+        PhysicsLayerManager manager = ProjectSettings.getPhysicsLayerManager();
+        List<PhysicsLayerManager.PhysicsLayer> layers = manager.getLayers();
+
+        // Tabella layer
+        ImGui.text("Layers:");
+        ImGui.separator();
+
+        int layerToRemove = -1;
+
+        for (int i = 0; i < layers.size(); i++) {
+            ImGui.pushID("physlayer_" + i);
+            PhysicsLayerManager.PhysicsLayer layer = layers.get(i);
+
+            boolean isDefault = i == 0;
+
+            ImGui.text(String.valueOf(i));
+            ImGui.sameLine();
+
+            // Freccia su
+            if (i > 1) {
+                if (ImGui.arrowButton("##up", ImGuiDir.Up)) {
+                    manager.moveLayerUp(i);
+                    context.setSceneDirty(true);
+                }
+                ImGui.sameLine();
+            } else {
+                ImGui.dummy(20, 0);
+                ImGui.sameLine();
+            }
+
+            // Freccia giù
+            if (i >= 1 && i < layers.size() - 1) {
+                if (ImGui.arrowButton("##down", ImGuiDir.Down)) {
+                    manager.moveLayerDown(i);
+                    context.setSceneDirty(true);
+                }
+                ImGui.sameLine();
+            } else {
+                ImGui.dummy(20, 0);
+                ImGui.sameLine();
+            }
+
+            // Nome layer
+            ImString layerName = new ImString(layer.name, 64);
+            if (ImGui.inputText("##name", layerName)) {
+                String name = layerName.get().trim();
+                if (!name.isEmpty() && !name.equals(layer.name) && !manager.layerExists(name)) {
+                    manager.renameLayer(i, name);
+                    context.setSceneDirty(true);
+                }
+            }
+            ImGui.sameLine();
+
+            // Bit info
+            ImGui.textDisabled("bit " + layer.bit);
+            ImGui.sameLine();
+
+            // Rimuovi
+            if (!isDefault) {
+                if (ImGui.button("X", 20, 20)) {
+                    layerToRemove = i;
+                }
+            } else {
+                ImGui.text("(default)");
+            }
+
+            ImGui.popID();
+        }
+
+        if (layerToRemove >= 0) {
+            manager.removeLayer(layerToRemove);
+            context.setSceneDirty(true);
+        }
+
+        ImGui.separator();
+
+        // Aggiungi nuovo layer
+        ImGui.text("Add New Layer:");
+        ImGui.inputText("##newphyslayer", newLayerName);
+        ImGui.sameLine();
+        if (ImGui.button("Add")) {
+            String name = newLayerName.get().trim();
+            if (!name.isEmpty() && !manager.layerExists(name)) {
+                manager.addLayer(name);
+                context.setSceneDirty(true);
+                newLayerName.set("");
+            }
+        }
+
+        ImGui.separator();
+        ImGui.text("Max 16 layers (bit 0-15). Default layer cannot be removed.");
+
+        // ============================================
+        // MATRIX DI COLLISIONE
+        // ============================================
+        ImGui.separator();
+        ImGui.text("Collision Matrix:");
+        ImGui.textDisabled("Check which layers can collide with each other");
+        ImGui.separator();
+
+        float cellSize = 80;
+
+        // Header riga
+        ImGui.text(""); // Spazio per angolo
+        for (int col = 0; col < layers.size() && col < 8; col++) { // Max 8 colonne visibili
+            ImGui.sameLine(cellSize * (col + 1));
+            String shortName = layers.get(col).name.length() > 6
+                    ? layers.get(col).name.substring(0, 6)
+                    : layers.get(col).name;
+            ImGui.text(shortName);
+        }
+
+        for (int row = 0; row < layers.size() && row < 8; row++) {
+            PhysicsLayerManager.PhysicsLayer rowLayer = layers.get(row);
+
+            ImGui.text(rowLayer.name.length() > 6
+                    ? rowLayer.name.substring(0, 6)
+                    : rowLayer.name);
+
+            for (int col = 0; col < layers.size() && col < 8; col++) {
+                ImGui.sameLine(cellSize * (col + 1));
+
+                boolean canCollide = manager.canLayersCollide(row, col);
+                ImBoolean collide = new ImBoolean(canCollide);
+
+                ImGui.pushID("collide_" + row + "_" + col);
+                if (ImGui.checkbox("##c", collide)) {
+                    manager.toggleLayerInMask(row, col, collide.get());
+                    // Simmetrico: se A collide con B, B collide con A
+                    manager.toggleLayerInMask(col, row, collide.get());
+                    context.setSceneDirty(true);
+                }
+                ImGui.popID();
+            }
+        }
+
+        ImGui.separator();
+        ImGui.textDisabled("Tip: Uncheck to prevent collisions between layers.");
     }
 
     private void saveSceneSafely() {

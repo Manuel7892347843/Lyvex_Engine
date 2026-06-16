@@ -18,6 +18,10 @@ public class vector2D {
         return new vector2D(x + v2.x, y + v2.y);
     }
 
+    public vector2D add(vector2f v2){
+        return new vector2D(x + v2.x, y + v2.y);
+    }
+
     public vector2D sub(vector2D v2){
         return new vector2D(x - v2.x, y - v2.y);
     }

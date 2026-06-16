@@ -1,21 +1,23 @@
 package ui.panels;
 
+import core.ProjectSettings;
 import core.assetmanager.AssetManager;
+import core.component.Component;
+import core.component.Transform;
+import core.component.sprite.Sprite;
+import core.component.sprite.SpriteComponent;
+import core.component.sprite.SpriteLoader;
 import core.component.tilemap.Tilemap;
 import core.component.ui.color.UIColor;
 import core.component.ui.uiElements.UIButton;
 import core.component.ui.uiElements.UIImage;
+import core.component.ui.uiElements.UIText;
 import core.gameobject.GameObject;
 import core.lib.math.vector2D;
 import core.lib.math.vector2f;
 import core.lib.math.vector3f;
+import core.physics.PhysicsLayerManager;
 import core.scriptutil.ScriptComponentRegistry;
-import core.component.sprite.SpriteLoader;
-import core.component.Component;
-import core.component.sprite.Sprite;
-import core.component.sprite.SpriteComponent;
-import core.component.Transform;
-import core.component.ui.uiElements.UIText;
 import imgui.ImGui;
 import imgui.ImVec2;
 import imgui.flag.ImGuiCol;
@@ -23,17 +25,22 @@ import imgui.flag.ImGuiCond;
 import imgui.flag.ImGuiInputTextFlags;
 import imgui.flag.ImGuiWindowFlags;
 import imgui.type.ImBoolean;
+import imgui.type.ImInt;
 import imgui.type.ImString;
 import ui.EditorContext;
 import ui.EditorPanel;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -50,8 +57,28 @@ public class InspectorPanel implements EditorPanel {
     private float paletteZoom = 1.0f;
     private ImBoolean tilemapEditorOpen = new ImBoolean(false);
 
-    // NUOVO: target generico per lo sprite picker (UIImage / UIButton)
     private SpritePickerTarget currentSpritePicker = null;
+
+    // Campi da NON mostrare mai nell'inspector
+    private static final Set<String> BLACKLISTED_FIELDS = new HashSet<>(Arrays.asList(
+            "gameObject",      // reference runtime al parent
+            "enabled",         // gestito separatamente se necessario
+            "awoken",          // stato interno
+            "started",         // stato interno
+            "dirty",           // flag interno collider
+            "worldBounds",     // calcolato runtime
+            "inverseMass",     // derivato da mass
+            "acceleration",    // calcolato fisica
+            "forceAccumulator", // calcolato fisica
+            "cachedSprite",    // cache runtime UIText
+            "lastText",        // cache interna
+            "lastFontSize",    // cache interna
+            "lastFontName",    // cache interna
+            "lastFontAssetPath", // cache interna
+            "lastR", "lastG", "lastB", "lastA", // cache interna
+            "hovered", "pressed", // stato runtime UIButton
+            "onClick"          // callback runtime
+    ));
 
     @Override
     public void init() {
@@ -128,46 +155,32 @@ public class InspectorPanel implements EditorPanel {
 
         for (Component component : selected.getComponents()) {
             ImGui.separator();
-            ImGui.text(component.getClass().getSimpleName());
+            String compName = component.getClass().getSimpleName();
+            ImGui.text(compName);
 
-            drawComponentFields(component, context);
+            // ============== DISEGNO DINAMICO DEI CAMPI ==============
+            drawComponentFieldsDynamically(component, context);
+
+            // ============== CAMPI SPECIALI PER COMPONENTI SPECIFICI ==============
+            if (component instanceof SpriteComponent spriteComponent) {
+                drawSpriteField(spriteComponent, context);
+            }
+
+            if (component instanceof UIImage image) {
+                drawUIImageSpriteField(image, context);
+            }
+
+            if (component instanceof UIButton button) {
+                drawUIButtonSpriteFields(button, context);
+            }
 
             if (component instanceof UIText text) {
                 drawUITextFontField(text, context);
             }
 
-            // ============== SPRITE COMPONENT ==============
-            if (component instanceof SpriteComponent spriteComponent) {
-                drawSpriteField(spriteComponent, context);
-
-                ImGui.text("Sorting");
-
-                ImString layer = new ImString(spriteComponent.getSortingLayer(), 64);
-                if (ImGui.inputText("Sorting Layer", layer)) {
-                    spriteComponent.setSortingLayer(layer.get());
-                    context.setSceneDirty(true);
-                }
-
-                int[] order = { spriteComponent.getSortingOrder() };
-                if (ImGui.dragInt("Order in Layer", order, 1)) {
-                    spriteComponent.setSortingOrder(order[0]);
-                    context.setSceneDirty(true);
-                }
-            }
-
-            // ============== UI IMAGE ==============
-            if (component instanceof UIImage image) {
-                drawUIImageSpriteField(image, context);
-            }
-
-            // ============== UI BUTTON ==============
-            if (component instanceof UIButton button) {
-                drawUIButtonSpriteFields(button, context);
-            }
-
             if (component instanceof Transform transform) {
                 drawTransformField(transform, context);
-                ImGui.text("Transform is required and cannot be removed.");
+                ImGui.textDisabled("Transform is required and cannot be removed.");
             } else if (component instanceof Tilemap tilemap) {
                 drawTilemapEditor(tilemap, context);
                 if (ImGui.button("Remove##" + component.hashCode())) {
@@ -195,100 +208,326 @@ public class InspectorPanel implements EditorPanel {
         }
     }
 
-    private void drawComponentFields(Component component, EditorContext context) {
-        Field[] fields = component.getClass().getFields();
+    /**
+     * DISEGNO DINAMICO DEI CAMPI - itera su TUTTI i campi della classe e delle superclassi
+     */
+    private void drawComponentFieldsDynamically(Component component, EditorContext context) {
+        Class<?> clazz = component.getClass();
 
-        for (Field field : fields) {
-            try {
-                Class<?> type = field.getType();
-                String fieldName = field.getName();
-                Object value = field.get(component);
+        while (clazz != null && clazz != Object.class) {
+            Field[] fields = clazz.getDeclaredFields();
 
-                // Salta i campi sprite/path che gestiamo con i picker dedicati
-                if (fieldName.equals("sprite") || fieldName.endsWith("SpritePath") || fieldName.equals("spriteAssetPath")) {
-                    continue;
+            for (Field field : fields) {
+                try {
+                    field.setAccessible(true);
+                    int mods = field.getModifiers();
+
+                    // Salta campi che non devono essere editati
+                    if (Modifier.isStatic(mods) || Modifier.isTransient(mods)) continue;
+
+                    String fieldName = field.getName();
+
+                    // Salta campi nella blacklist
+                    if (BLACKLISTED_FIELDS.contains(fieldName)) continue;
+
+                    Class<?> type = field.getType();
+                    Object value = field.get(component);
+
+                    // Salta campi sprite runtime (gestiti separatamente)
+                    if (fieldName.equals("sprite") ||
+                            (fieldName.endsWith("Sprite") && !fieldName.endsWith("SpritePath") && !fieldName.endsWith("AssetPath"))) {
+                        continue;
+                    }
+
+                    // Salta campi che iniziano con underscore (convenzione privati interni)
+                    if (fieldName.startsWith("_")) continue;
+
+                    // Salta campi già gestiti da metodi specializzati
+                    if (isFieldHandledBySpecializedMethod(component, fieldName)) continue;
+
+                    // ============================================
+                    // FIX: Campi collisionLayer e collisionMask
+                    // ============================================
+                    if (fieldName.equals("collisionLayer")) {
+                        drawCollisionLayerField(component, field, fieldName, context);
+                        continue;
+                    }
+                    if (fieldName.equals("collisionMask")) {
+                        drawCollisionMaskField(component, field, fieldName, context);
+                        continue;
+                    }
+
+                    drawFieldByType(component, field, fieldName, type, value, context);
+
+                } catch (Exception e) {
+                    // Campo non accessibile, ignora
                 }
-
-                if(type == vector2D.class || type.getSimpleName().equals("vector2D")){
-                    vector2D vec = (vector2D) value;
-                    if (vec == null) {
-                        vec = new vector2D(0, 0);
-                        field.set(component, vec);
-                    }
-
-                    float[] v = { vec.x, vec.y };
-                    if (ImGui.dragFloat2(fieldName, v, 0.05f)) {
-                        vec.x = v[0];
-                        vec.y = v[1];
-                        context.setSceneDirty(true);
-                    }
-                    continue;
-                }
-
-                if(type == vector3f.class || type.getSimpleName().equals("vector3f")){
-                    vector3f vec = (vector3f) value;
-                    if(vec == null){
-                        vec = new vector3f(0, 0, 0);
-                        field.set(component, vec);
-                    }
-
-                    float[] v = {vec.x, vec.y, vec.z};
-                    if(ImGui.dragFloat3(fieldName, v, 0.05f)){
-                        vec.x = v[0];
-                        vec.y = v[1];
-                        vec.z = v[2];
-                        context.setSceneDirty(true);
-                    }
-                    continue;
-                }
-
-                if(type == UIColor.class || type.getSimpleName().equals("UIColor")){
-                    UIColor color = (UIColor)value;
-                    if(color == null){
-                        color = new UIColor(1, 1, 1, 1);
-                        field.set(component, color);
-                    }
-
-                    float[] c = { color.r, color.g, color.b, color.a };
-                    if(ImGui.colorEdit4(fieldName, c)){
-                        color.r = clamp01(c[0]);
-                        color.g = clamp01(c[1]);
-                        color.b = clamp01(c[2]);
-                        color.a = clamp01(c[3]);
-                        field.set(component, color);
-                        context.setSceneDirty(true);
-                    }
-                    continue;
-                }
-
-                if (type == float.class) {
-                    float[] v = { field.getFloat(component) };
-                    if (ImGui.dragFloat(fieldName, v, 0.05f)) {
-                        field.setFloat(component, v[0]);
-                        context.setSceneDirty(true);
-                    }
-                } else if (type == int.class) {
-                    int[] v = { field.getInt(component) };
-                    if (ImGui.dragInt(fieldName, v, 1.0f)) {
-                        field.setInt(component, v[0]);
-                        context.setSceneDirty(true);
-                    }
-                } else if (type == boolean.class) {
-                    boolean current = field.getBoolean(component);
-                    if (ImGui.button(fieldName + ": " + (current ? "true" : "false"))) {
-                        field.setBoolean(component, !current);
-                        context.setSceneDirty(true);
-                    }
-                } else if (type == String.class) {
-                    ImString str = new ImString(value != null ? value.toString() : "", 256);
-                    if (ImGui.inputText(fieldName, str)) {
-                        field.set(component, str.get());
-                        context.setSceneDirty(true);
-                    }
-                }
-            } catch (Exception ignored) {
-                ignored.printStackTrace();
             }
+
+            clazz = clazz.getSuperclass();
+        }
+    }
+
+    private boolean isFieldHandledBySpecializedMethod(Component component, String fieldName) {
+        if (component instanceof SpriteComponent) {
+            return fieldName.equals("spriteAssetPath") || fieldName.equals("sortingLayer") || fieldName.equals("sortingOrder");
+        }
+        if (component instanceof UIImage) {
+            return fieldName.equals("spriteAssetPath") || fieldName.equals("sprite");
+        }
+        if (component instanceof UIButton) {
+            return fieldName.equals("normalSpritePath") || fieldName.equals("hoverSpritePath") ||
+                    fieldName.equals("pressedSpritePath") || fieldName.equals("normalSprite") ||
+                    fieldName.equals("hoverSprite") || fieldName.equals("pressedSprite");
+        }
+        if (component instanceof Tilemap) {
+            return fieldName.equals("tilesetPath") || fieldName.equals("tileSize") ||
+                    fieldName.equals("sortingLayer") || fieldName.equals("sortingOrder") ||
+                    fieldName.equals("tiles") || fieldName.equals("pixelsPerUnit");
+        }
+        if (component instanceof UIText) {
+            return fieldName.equals("fontAssetPath") || fieldName.equals("cachedSprite") ||
+                    fieldName.startsWith("last") || fieldName.equals("dirty");
+        }
+        if (component instanceof Transform) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * NUOVO: Dropdown per selezionare il collisionLayer con i nomi dei Physics Layer
+     */
+    private void drawCollisionLayerField(Component component, Field field, String fieldName, EditorContext context) {
+        try {
+            PhysicsLayerManager manager = ProjectSettings.getPhysicsLayerManager();
+            List<PhysicsLayerManager.PhysicsLayer> layers = manager.getLayers();
+
+            int currentValue = field.getInt(component);
+            String[] names = new String[layers.size()];
+            int currentIndex = 0;
+
+            for (int i = 0; i < layers.size(); i++) {
+                names[i] = layers.get(i).name;
+                if ((1 << layers.get(i).bit) == currentValue) {
+                    currentIndex = i;
+                }
+            }
+
+            ImInt selected = new ImInt(currentIndex);
+            if (ImGui.combo(fieldName, selected, names, names.length)) {
+                int newValue = 1 << layers.get(selected.get()).bit;
+                field.setInt(component, newValue);
+                context.setSceneDirty(true);
+            }
+
+            ImGui.sameLine();
+            ImGui.textDisabled(String.format("0x%04X", currentValue));
+
+        } catch (Exception e) {
+            ImGui.textDisabled(fieldName + " (error)");
+        }
+    }
+
+    /**
+     * NUOVO: Popup per modificare la collisionMask con checkbox per ogni layer
+     */
+    private void drawCollisionMaskField(Component component, Field field, String fieldName, EditorContext context) {
+        try {
+            PhysicsLayerManager manager = ProjectSettings.getPhysicsLayerManager();
+            List<PhysicsLayerManager.PhysicsLayer> layers = manager.getLayers();
+
+            int currentMask = field.getInt(component);
+
+            ImGui.text(fieldName + ": " + String.format("0x%04X", currentMask));
+
+            if (ImGui.button("Edit##" + component.hashCode() + "_mask")) {
+                ImGui.openPopup("CollisionMaskPopup##" + component.hashCode());
+            }
+
+            if (ImGui.beginPopup("CollisionMaskPopup##" + component.hashCode())) {
+                ImGui.text("Collides with:");
+                ImGui.separator();
+
+                for (int i = 0; i < layers.size(); i++) {
+                    PhysicsLayerManager.PhysicsLayer layer = layers.get(i);
+                    boolean isSet = (currentMask & (1 << layer.bit)) != 0;
+                    ImBoolean imBool = new ImBoolean(isSet);
+
+                    if (ImGui.checkbox(layer.name + "##" + i, imBool)) {
+                        if (imBool.get()) {
+                            currentMask |= (1 << layer.bit);
+                        } else {
+                            currentMask &= ~(1 << layer.bit);
+                        }
+                        field.setInt(component, currentMask);
+                        context.setSceneDirty(true);
+                    }
+                }
+
+                ImGui.separator();
+                if (ImGui.button("Select All")) {
+                    field.setInt(component, 0xFFFF);
+                    context.setSceneDirty(true);
+                }
+                ImGui.sameLine();
+                if (ImGui.button("Clear All")) {
+                    field.setInt(component, 0);
+                    context.setSceneDirty(true);
+                }
+                ImGui.sameLine();
+                if (ImGui.button("Default")) {
+                    field.setInt(component, 0xFFFF);
+                    context.setSceneDirty(true);
+                }
+
+                ImGui.endPopup();
+            }
+
+        } catch (Exception e) {
+            ImGui.textDisabled(fieldName + " (error)");
+        }
+    }
+
+    private void drawFieldByType(Component component, Field field, String fieldName, Class<?> type, Object value, EditorContext context) {
+        try {
+            // vector2D
+            if (type == vector2D.class || type.getSimpleName().equals("vector2D")) {
+                vector2D vec = (vector2D) (value != null ? value : new vector2D(0, 0));
+                if (value == null) field.set(component, vec);
+                float[] v = { vec.x, vec.y };
+                if (ImGui.dragFloat2(fieldName, v, 0.05f)) {
+                    vec.x = v[0]; vec.y = v[1];
+                    context.setSceneDirty(true);
+                }
+                return;
+            }
+
+            // vector2f
+            if (type == vector2f.class || type.getSimpleName().equals("vector2f")) {
+                vector2f vec = (vector2f) (value != null ? value : new vector2f(0, 0));
+                if (value == null) field.set(component, vec);
+                float[] v = { vec.x, vec.y };
+                if (ImGui.dragFloat2(fieldName, v, 0.05f)) {
+                    vec.x = v[0]; vec.y = v[1];
+                    context.setSceneDirty(true);
+                }
+                return;
+            }
+
+            // vector3f
+            if (type == vector3f.class || type.getSimpleName().equals("vector3f")) {
+                vector3f vec = (vector3f) (value != null ? value : new vector3f(0, 0, 0));
+                if (value == null) field.set(component, vec);
+                float[] v = { vec.x, vec.y, vec.z };
+                if (ImGui.dragFloat3(fieldName, v, 0.05f)) {
+                    vec.x = v[0]; vec.y = v[1]; vec.z = v[2];
+                    context.setSceneDirty(true);
+                }
+                return;
+            }
+
+            // UIColor
+            if (type == UIColor.class || type.getSimpleName().equals("UIColor")) {
+                UIColor color = (UIColor) (value != null ? value : new UIColor(1, 1, 1, 1));
+                if (value == null) field.set(component, color);
+                float[] c = { color.r, color.g, color.b, color.a };
+                if (ImGui.colorEdit4(fieldName, c)) {
+                    color.r = clamp01(c[0]);
+                    color.g = clamp01(c[1]);
+                    color.b = clamp01(c[2]);
+                    color.a = clamp01(c[3]);
+                    context.setSceneDirty(true);
+                }
+                return;
+            }
+
+            // float
+            if (type == float.class) {
+                float[] v = { field.getFloat(component) };
+                if (ImGui.dragFloat(fieldName, v, 0.05f)) {
+                    field.setFloat(component, v[0]);
+                    context.setSceneDirty(true);
+                }
+                return;
+            }
+
+            // int
+            if (type == int.class) {
+                int[] v = { field.getInt(component) };
+                if (ImGui.dragInt(fieldName, v, 1)) {
+                    field.setInt(component, v[0]);
+                    context.setSceneDirty(true);
+                }
+                return;
+            }
+
+            // boolean - FIX: ImGui.checkbox ritorna true se cliccato
+            if (type == boolean.class) {
+                boolean current = field.getBoolean(component);
+                ImBoolean imBool = new ImBoolean(current);
+                if (ImGui.checkbox(fieldName, imBool)) {
+                    field.setBoolean(component, imBool.get());
+                    context.setSceneDirty(true);
+                }
+                return;
+            }
+
+            // String
+            if (type == String.class) {
+                ImString str = new ImString(value != null ? value.toString() : "", 256);
+                if (ImGui.inputText(fieldName, str)) {
+                    field.set(component, str.get());
+                    context.setSceneDirty(true);
+                }
+                return;
+            }
+
+            // double
+            if (type == double.class) {
+                double[] v = { field.getDouble(component) };
+                float[] fv = { (float) v[0] };
+                if (ImGui.dragFloat(fieldName, fv, 0.05f)) {
+                    field.setDouble(component, fv[0]);
+                    context.setSceneDirty(true);
+                }
+                return;
+            }
+
+            // long
+            if (type == long.class) {
+                long[] v = { field.getLong(component) };
+                int[] iv = { (int) v[0] };
+                if (ImGui.dragInt(fieldName, iv, 1)) {
+                    field.setLong(component, iv[0]);
+                    context.setSceneDirty(true);
+                }
+                return;
+            }
+
+            // Enum
+            if (type.isEnum()) {
+                Object[] enumConstants = type.getEnumConstants();
+                String[] names = new String[enumConstants.length];
+                int currentIndex = 0;
+                Object currentValue = field.get(component);
+                for (int i = 0; i < enumConstants.length; i++) {
+                    names[i] = enumConstants[i].toString();
+                    if (enumConstants[i].equals(currentValue)) currentIndex = i;
+                }
+                ImInt selected = new ImInt(currentIndex);
+                if (ImGui.combo(fieldName, selected, names, names.length)) {
+                    field.set(component, enumConstants[selected.get()]);
+                    context.setSceneDirty(true);
+                }
+                return;
+            }
+
+            // Tipi non supportati - mostra come label read-only
+            ImGui.textDisabled(fieldName + " (unsupported: " + type.getSimpleName() + ")");
+
+        } catch (Exception e) {
+            ImGui.textDisabled(fieldName + " (error)");
         }
     }
 
@@ -316,7 +555,7 @@ public class InspectorPanel implements EditorPanel {
         }
     }
 
-    // ============== SPRITE COMPONENT (esistente) ==============
+    // ============== SPRITE COMPONENT ==============
     private void drawSpriteField(SpriteComponent spriteComponent, EditorContext context) {
         ImGui.separator();
         ImGui.text("Sprite");
@@ -332,6 +571,20 @@ public class InspectorPanel implements EditorPanel {
             spritePickerTarget = spriteComponent;
             currentSpritePicker = null;
             ImGui.openPopup("SpritePickerPopup");
+        }
+
+        ImGui.text("Sorting");
+
+        ImString layer = new ImString(spriteComponent.getSortingLayer(), 64);
+        if (ImGui.inputText("Sorting Layer", layer)) {
+            spriteComponent.setSortingLayer(layer.get());
+            context.setSceneDirty(true);
+        }
+
+        int[] order = { spriteComponent.getSortingOrder() };
+        if (ImGui.dragInt("Order in Layer", order, 1)) {
+            spriteComponent.setSortingOrder(order[0]);
+            context.setSceneDirty(true);
         }
     }
 
@@ -422,7 +675,7 @@ public class InspectorPanel implements EditorPanel {
         }
     }
 
-    // ============== SPRITE PICKER POPUP (modificato per supportare target generico) ==============
+    // ============== SPRITE PICKER POPUP ==============
     private void drawSpritePickerPopup(EditorContext context) {
         if (ImGui.beginPopup("SpritePickerPopup")) {
             Path assetsRoot = AssetManager.getAssetPath();
@@ -437,7 +690,6 @@ public class InspectorPanel implements EditorPanel {
                             String relative = assetsRoot.relativize(path).toString().replace('\\', '/');
                             if (ImGui.selectable(relative)) {
                                 if (spritePickerTarget != null) {
-                                    // Vecchio sistema per SpriteComponent
                                     spritePickerTarget.setSpriteAssetPath(relative);
                                     try {
                                         Path realPath = assetsRoot.resolve(relative);
@@ -447,7 +699,6 @@ public class InspectorPanel implements EditorPanel {
                                         throw new RuntimeException("Failed to load sprite: " + relative, e);
                                     }
                                 } else if (currentSpritePicker != null) {
-                                    // Nuovo sistema per UIImage/UIButton
                                     currentSpritePicker.onSelect.accept(relative);
                                 }
                                 context.setSceneDirty(true);
@@ -466,7 +717,6 @@ public class InspectorPanel implements EditorPanel {
         }
     }
 
-    // ============== CLASSE HELPER PER LO SPRITE PICKER ==============
     private static class SpritePickerTarget {
         final Consumer<String> onSelect;
         final String currentPath;

@@ -1,6 +1,7 @@
 package core.component;
 
 import core.gameobject.GameObject;
+import core.physics.Collision;
 
 public class Component {
     private GameObject gameObject;
@@ -30,6 +31,9 @@ public class Component {
     }
 
     public void onDestroy() {
+    }
+
+    public void onCollision(Collision collision){
     }
 
     public GameObject getGameObject() {

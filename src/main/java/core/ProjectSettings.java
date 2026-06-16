@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
 import core.lib.SceneManager;
 import core.log.Log;
+import core.physics.PhysicsLayerManager;
 import core.sorting.SortingLayerManager;
 
 import java.io.IOException;
@@ -18,12 +19,14 @@ public class ProjectSettings {
 
     private static SortingLayerManager sortingLayerManager;
     private static SceneManager sceneManager;
+    private static PhysicsLayerManager physicsLayerManager;
     private static String codeEditorPath;
 
     public static class ProjectData {
         public String projectName = "";
         public List<String> sortingLayers = new ArrayList<>();
         public List<SceneManager.SceneEntry> scenes = new ArrayList<>();
+        public List<PhysicsLayerManager.PhysicsLayer> physicsLayers = new ArrayList<>();
         public String startupScene = "";
         public String codeEditorPath = "";
         public int targetFPS = 60;
@@ -46,6 +49,13 @@ public class ProjectSettings {
     public static String getCodeEditorPath() {
         return codeEditorPath;
     }
+    public static PhysicsLayerManager getPhysicsLayerManager() {
+
+        if (physicsLayerManager == null) {
+            physicsLayerManager = new PhysicsLayerManager();
+        }
+        return physicsLayerManager;
+    }
 
     public static void setCodeEditorPath(String path) {
         codeEditorPath = path;
@@ -65,6 +75,8 @@ public class ProjectSettings {
         }
 
         data.codeEditorPath = codeEditorPath;
+
+        data.physicsLayers = getPhysicsLayerManager().getLayers();
 
         try {
             Files.createDirectories(projectFile.getParent());

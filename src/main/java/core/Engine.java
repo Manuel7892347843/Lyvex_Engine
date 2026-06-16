@@ -7,8 +7,8 @@ import core.component.Component;
 import core.gameobject.GameObject;
 import core.input.InputManager;
 import core.lib.SceneManager;
-import core.lib.Time;
 import core.lib.Timer;
+import core.physics.PhysicsWorld2D;
 import core.render.FrameBuffer;
 import core.render.GameFrameBuffer;
 import core.render.SceneRenderer;
@@ -37,11 +37,14 @@ public class Engine {
     private static final int SCENE_WIDTH = 1570;
     private static final int SCENE_HEIGHT = 600;
 
+    public static final float FIXED_TIMESTEP = 1.0f / 60.0f;
+
     private static boolean isInPlayMode = false;
     private boolean isInitialized = false;
 
     private static float deltaTime = 0.0f;
     private static double lastFrameTime = 0.0;
+    private float accumulator = 0.0f;
 
     private long window;
     private EditorUI editorUI;
@@ -120,6 +123,9 @@ public class Engine {
             deltaTime = (float)(currentTime - lastFrameTime);
             lastFrameTime = currentTime;
 
+            accumulator += deltaTime;
+            accumulator = Math.min(accumulator, 0.25f);
+
             glfwPollEvents();
             InputManager.update();
             Timer.update();
@@ -128,6 +134,7 @@ public class Engine {
             if (isInPlayMode && !isInitialized) {
                 awakeScene();
                 startScene();
+                registerAllColliders();
                 isInitialized = true;
                 editorUI.setShowGameView(true);
             }
@@ -139,6 +146,12 @@ public class Engine {
             }
 
             if (isInPlayMode) {
+                while (accumulator >= FIXED_TIMESTEP) {
+                    fixedUpdateScene();
+                    PhysicsWorld2D.getInstance().step(FIXED_TIMESTEP);
+                    accumulator -= FIXED_TIMESTEP;
+                }
+
                 updateScene();
                 lateUpdateScene();
             }
@@ -216,6 +229,23 @@ public class Engine {
         }
     }
 
+    private void fixedUpdateScene() {
+        for (GameObject rootObject : currentScene.getRootObjects()) {
+            fixedUpdateGameObjectRecursive(rootObject);
+        }
+    }
+
+    private void fixedUpdateGameObjectRecursive(GameObject gameObject) {
+        for (Component component : gameObject.getComponents()) {
+            if (component.isEnabled()) {
+                component.fixedUpdate();
+            }
+        }
+        for (GameObject child : gameObject.getChildren()) {
+            fixedUpdateGameObjectRecursive(child);
+        }
+    }
+
     private void updateScene() {
         for (GameObject rootObject : currentScene.getRootObjects()) {
             updateGameObjectRecursive(rootObject);
@@ -255,6 +285,8 @@ public class Engine {
             return;
         }
 
+        PhysicsWorld2D.getInstance().clearColliders();
+
         for (GameObject rootObject : currentScene.getRootObjects()) {
             destroyGameObjectRecursive(rootObject);
         }
@@ -269,6 +301,24 @@ public class Engine {
 
         for (GameObject child : gameObject.getChildren()) {
             destroyGameObjectRecursive(child);
+        }
+    }
+
+    private void registerAllColliders() {
+        PhysicsWorld2D.getInstance().clearColliders();
+        for (GameObject rootObject : currentScene.getRootObjects()) {
+            registerCollidersRecursive(rootObject);
+        }
+    }
+
+    private void registerCollidersRecursive(GameObject gameObject) {
+        for (Component component : gameObject.getComponents()) {
+            if (component instanceof core.physics.Collider2D) {
+                PhysicsWorld2D.getInstance().registerCollider((core.physics.Collider2D) component);
+            }
+        }
+        for (GameObject child : gameObject.getChildren()) {
+            registerCollidersRecursive(child);
         }
     }
 

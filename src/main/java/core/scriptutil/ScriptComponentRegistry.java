@@ -23,6 +23,10 @@ import core.component.ui.uiElements.UIImage;
 import core.component.ui.uiElements.UIPanel;
 import core.component.ui.uiElements.UIText;
 import core.log.Log;
+import core.physics.BoxCollider2D;
+import core.physics.CircleCollider2D;
+import core.physics.Collider2D;
+import core.physics.RaycastHit2D;
 
 public class ScriptComponentRegistry {
     private static final List<Class<? extends Component>> COMPONENT_CLASSES = new ArrayList<>();
@@ -44,6 +48,15 @@ public class ScriptComponentRegistry {
         COMPONENT_CLASSES.add(UIText.class);
         COMPONENT_CLASSES.add(UIImage.class);
         COMPONENT_CLASSES.add(UIButton.class);
+
+        //COLLIDER
+        COMPONENT_CLASSES.add(Collider2D.class);
+        COMPONENT_CLASSES.add(BoxCollider2D.class);
+        COMPONENT_CLASSES.add(CircleCollider2D.class);
+        //COMPONENT_CLASSES.add(RaycastHit2D.class); TODO: da implementare, solo forma base attualmente
+
+        //COLLIDER DEBUG
+        COMPONENT_CLASSES.add(PhysicsWorld2DDebug.class);
 
         Path scriptsRoot = ProjectManager.getScriptsPath();
         if (scriptsRoot == null || !Files.exists(scriptsRoot)) {

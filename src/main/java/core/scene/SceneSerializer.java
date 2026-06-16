@@ -2,27 +2,29 @@ package core.scene;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import core.component.Component;
+import core.component.ComponentData;
 import core.component.Transform;
+import core.component.RigidBody2D;
 import core.component.tilemap.Tilemap;
+import core.component.ui.UIElement;
 import core.component.ui.color.UIColor;
 import core.component.ui.uiElements.UIButton;
 import core.component.ui.uiElements.UIImage;
 import core.component.ui.uiElements.UIPanel;
 import core.component.ui.uiElements.UIText;
-import core.lib.math.vector2D;
-import core.scriptutil.ScriptComponentRegistry;
-import core.component.sprite.SpriteLoader;
-import core.assetmanager.AssetManager;
-import core.component.Component;
-import core.component.ComponentData;
 import core.component.sprite.Sprite;
 import core.component.sprite.SpriteComponent;
+import core.component.sprite.SpriteLoader;
+import core.assetmanager.AssetManager;
 import core.gameobject.GameObject;
 import core.gameobject.GameObjectData;
+import core.scriptutil.ScriptComponentRegistry;
 import ui.EditorContext;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -81,121 +83,95 @@ public class SceneSerializer {
 
     private static ComponentData toComponentData(Component component) {
         ComponentData data = new ComponentData();
-
         data.type = component.getClass().getName();
 
-        if (component instanceof Transform transform) {
-            data.fields.put("x", transform.getX());
-            data.fields.put("y", transform.getY());
-            data.fields.put("rotation", transform.getRotation());
-            data.fields.put("scaleX", transform.getScale().x);
-            data.fields.put("scaleY", transform.getScale().y);
-            return data;
-        }
+        Class<?> clazz = component.getClass();
+        while (clazz != null && clazz != Object.class) {
+            Field[] fields = clazz.getDeclaredFields();
+            for (Field field : fields) {
+                try {
+                    field.setAccessible(true);
+                    String fieldName = field.getName();
+                    Object value = field.get(component);
 
-        if (component instanceof SpriteComponent sc) {
-            data.fields.put("spriteAssetPath", sc.getSpriteAssetPath());
-            data.fields.put("sortingLayer", sc.getSortingLayer());
-            data.fields.put("sortingOrder", sc.getSortingOrder());
-            return data;
-        }
+                    // Salta null, static, final, transient
+                    if (value == null) continue;
+                    int mods = field.getModifiers();
+                    if (Modifier.isStatic(mods) || Modifier.isTransient(mods)) continue;
 
-        if (component instanceof Tilemap tilemap) {
-            data.fields.put("tileSize", tilemap.getTileSize());
-            data.fields.put("pixelsPerUnit", tilemap.getPixelsPerUnit());
-            data.fields.put("tilesetPath", tilemap.getTilesetPath());
-            data.fields.put("sortingLayer", tilemap.getSortingLayer());
-            data.fields.put("sortingOrder", tilemap.getSortingOrder());
+                    Class<?> type = value.getClass();
 
-            StringBuilder sb = new StringBuilder();
-            for (Map.Entry<String, Integer> entry : tilemap.getTiles().entrySet()) {
-                if (sb.length() > 0) sb.append(";");
-                sb.append(entry.getKey()).append(":").append(entry.getValue());
-            }
-            data.fields.put("tiles", sb.toString());
-            return data;
-        }
+                    // Tipi primitivi / wrapper
+                    if (isPrimitiveOrWrapper(type)) {
+                        data.fields.put(fieldName, value);
+                        continue;
+                    }
 
-        if (component instanceof UIButton btn) {
-            data.fields.put("UIx", btn.getX());
-            data.fields.put("UIy", btn.getY());
-            data.fields.put("UIwidth", btn.getWidth());
-            data.fields.put("UIheight", btn.getHeight());
-            data.fields.put("UIpivotX", btn.getPivotX());
-            data.fields.put("UIpivotY", btn.getPivotY());
-            data.fields.put("UIorder", btn.getOrder());
-            data.fields.put("visible", btn.isVisible());
-            data.fields.put("normalColor", btn.getNormalColor());
-            data.fields.put("hoverColor", btn.getHoverColor());
-            data.fields.put("pressedColor", btn.getPressedColor());
-            data.fields.put("normalSpritePath", btn.getNormalSpritePath());
-            data.fields.put("hoverSpritePath", btn.getHoverSpritePath());
-            data.fields.put("pressedSpritePath", btn.getPressedSpritePath());
+                    // vector2f / vector2D → serializza come stringa "x,y"
+                    if (value instanceof core.lib.math.vector2f v2f) {
+                        data.fields.put(fieldName, v2f.x + "," + v2f.y);
+                        continue;
+                    }
+                    if (value instanceof core.lib.math.vector2D v2d) {
+                        data.fields.put(fieldName, v2d.x + "," + v2d.y);
+                        continue;
+                    }
 
-            return data;
-        }
+                    // UIColor → serializza come mappa
+                    if (value instanceof UIColor c) {
+                        data.fields.put(fieldName, Map.of("r", c.r, "g", c.g, "b", c.b, "a", c.a));
+                        continue;
+                    }
 
-        if(component instanceof UIPanel panel){
-            data.fields.put("UIx", panel.getX());
-            data.fields.put("UIy", panel.getY());
-            data.fields.put("UIwidth", panel.getWidth());
-            data.fields.put("UIheight", panel.getHeight());
-            data.fields.put("UIpivotX", panel.getPivotX());
-            data.fields.put("UIpivotY", panel.getPivotY());
-            data.fields.put("UIorder", panel.getOrder());
-            data.fields.put("visible", panel.isVisible());
-            data.fields.put("color", panel.getColor());
-            return data;
-        }
+                    // Tilemap tiles → serializza come stringa "x,y:id;..."
+                    if (component instanceof Tilemap tilemap && fieldName.equals("tiles")) {
+                        StringBuilder sb = new StringBuilder();
+                        for (Map.Entry<String, Integer> entry : tilemap.getTiles().entrySet()) {
+                            if (sb.length() > 0) sb.append(";");
+                            sb.append(entry.getKey()).append(":").append(entry.getValue());
+                        }
+                        data.fields.put(fieldName, sb.toString());
+                        continue;
+                    }
 
-        if(component instanceof UIText txt){
-            data.fields.put("UIx", txt.getX());
-            data.fields.put("UIy", txt.getY());
-            data.fields.put("UIwidth", txt.getWidth());
-            data.fields.put("UIheight", txt.getHeight());
-            data.fields.put("UIpivotX", txt.getPivotX());
-            data.fields.put("UIpivotY", txt.getPivotY());
-            data.fields.put("UIorder", txt.getOrder());
-            data.fields.put("visible", txt.isVisible());
-            data.fields.put("text", txt.getText());
-            data.fields.put("fontSize", txt.getFontSize());
-            data.fields.put("fontName", txt.getFontName());
-            data.fields.put("fontAssetPath", txt.getFontAssetPath());
-            data.fields.put("color", txt.getColor());
-            return data;
-        }
+                    // SpriteComponent: salva solo il path, non l'oggetto Sprite
+                    if (component instanceof SpriteComponent sc && fieldName.equals("sprite")) {
+                        data.fields.put("spriteAssetPath", sc.getSpriteAssetPath());
+                        continue;
+                    }
 
-        if (component instanceof UIImage image) {
-            data.fields.put("UIx", image.getX());
-            data.fields.put("UIy", image.getY());
-            data.fields.put("UIwidth", image.getWidth());
-            data.fields.put("UIheight", image.getHeight());
-            data.fields.put("UIpivotX", image.getPivotX());
-            data.fields.put("UIpivotY", image.getPivotY());
-            data.fields.put("UIorder", image.getOrder());
-            data.fields.put("visible", image.isVisible());
-            data.fields.put("tint", image.getTint());
-            data.fields.put("spriteAssetPath", image.getSpriteAssetPath());
-            return data;
-        }
+                    // UIButton: salva solo i path, non gli oggetti Sprite
+                    if (component instanceof UIButton btn) {
+                        if (fieldName.equals("normalSprite")) {
+                            data.fields.put("normalSpritePath", btn.getNormalSpritePath());
+                            continue;
+                        }
+                        if (fieldName.equals("hoverSprite")) {
+                            data.fields.put("hoverSpritePath", btn.getHoverSpritePath());
+                            continue;
+                        }
+                        if (fieldName.equals("pressedSprite")) {
+                            data.fields.put("pressedSpritePath", btn.getPressedSpritePath());
+                            continue;
+                        }
+                    }
 
-        Field[] fields = component.getClass().getDeclaredFields();
-        for (Field field : fields) {
-            try {
-                field.setAccessible(true);
-                Object value = field.get(component);
+                    // UIImage: salva solo il path, non l'oggetto Sprite
+                    if (component instanceof UIImage img && fieldName.equals("sprite")) {
+                        data.fields.put("spriteAssetPath", img.getSpriteAssetPath());
+                        continue;
+                    }
 
-                if ("sprite".equals(field.getName())) {
-                    continue;
+                    // UIText: salva solo i dati, non lo sprite cached
+                    if (component instanceof UIText txt && fieldName.equals("cachedSprite")) {
+                        continue;
+                    }
+
+                    // Per gli altri tipi complessi, ignora
+                } catch (IllegalAccessException ignored) {
                 }
-
-                if (value != null && !isPrimitiveOrWrapper(value.getClass())) {
-                    continue;
-                }
-
-                data.fields.put(field.getName(), value);
-            } catch (IllegalAccessException ignored) {
             }
+            clazz = clazz.getSuperclass();
         }
 
         return data;
@@ -229,44 +205,12 @@ public class SceneSerializer {
             object.setId(data.id);
         }
 
-        ComponentData transformData = null;
-        if (data.components != null) {
-            for (ComponentData cd : data.components) {
-                if ("core.component.Transform".equals(cd.type)) {
-                    transformData = cd;
-                    break;
-                }
-            }
-        }
-
         if (data.components != null) {
             for (ComponentData componentData : data.components) {
                 Component component = fromComponentData(componentData);
                 if (component != null) {
                     object.addComponent(component);
                 }
-            }
-        }
-
-        if (transformData != null && transformData.fields != null) {
-            Map<String, Object> fields = transformData.fields;
-            Transform t = object.getTransform();
-            if (fields.containsKey("x") && fields.get("x") instanceof Number n) {
-                t.setPosition(n.floatValue(), t.getY());
-            }
-            if (fields.containsKey("y") && fields.get("y") instanceof Number n) {
-                t.setPosition(t.getX(), n.floatValue());
-            }
-            if (fields.containsKey("rotation") && fields.get("rotation") instanceof Number n) {
-                t.setRotation(n.floatValue());
-            }
-            if (fields.containsKey("scaleX") && fields.get("scaleX") instanceof Number n) {
-                vector2D currentScale = t.getScale();
-                t.setScale(n.floatValue(), currentScale.y);
-            }
-            if (fields.containsKey("scaleY") && fields.get("scaleY") instanceof Number n) {
-                vector2D currentScale = t.getScale();
-                t.setScale(currentScale.x, n.floatValue());
             }
         }
 
@@ -297,6 +241,7 @@ public class SceneSerializer {
                 applyFields(component, data.fields);
             }
 
+            // Post-init per SpriteComponent (ricarica lo sprite)
             if (component instanceof SpriteComponent spriteComponent) {
                 String assetPath = spriteComponent.getSpriteAssetPath();
                 if (assetPath != null && !assetPath.isBlank()) {
@@ -311,6 +256,23 @@ public class SceneSerializer {
                 }
             }
 
+            // Post-init per Tilemap (ricarica il tileset)
+            if (component instanceof Tilemap tilemap) {
+                tilemap.loadTileset();
+            }
+
+            // Post-init per UIButton (ricarica gli sprite)
+            if (component instanceof UIButton btn) {
+                btn.setNormalSpritePath(btn.getNormalSpritePath());
+                btn.setHoverSpritePath(btn.getHoverSpritePath());
+                btn.setPressedSpritePath(btn.getPressedSpritePath());
+            }
+
+            // Post-init per UIImage (ricarica lo sprite)
+            if (component instanceof UIImage img) {
+                img.setSpriteAssetPath(img.getSpriteAssetPath());
+            }
+
             return component;
         } catch (Exception e) {
             System.err.println("Failed to restore component: " + data.type);
@@ -320,209 +282,124 @@ public class SceneSerializer {
     }
 
     private static void applyFields(Component component, Map<String, Object> fields) {
-        if (component instanceof Transform transform) {
-            if (fields.containsKey("x") && fields.get("x") instanceof Number n) {
-                transform.setPosition(n.floatValue(), transform.getY());
-            }
-            if (fields.containsKey("y") && fields.get("y") instanceof Number n) {
-                transform.setPosition(transform.getX(), n.floatValue());
-            }
-            if (fields.containsKey("rotation") && fields.get("rotation") instanceof Number n) {
-                transform.setRotation(n.floatValue());
-            }
-            if (fields.containsKey("scaleX") && fields.get("scaleX") instanceof Number n) {
-                vector2D currentScale = transform.getScale();
-                transform.setScale(n.floatValue(), currentScale.y);
-            }
-            if (fields.containsKey("scaleY") && fields.get("scaleY") instanceof Number n) {
-                vector2D currentScale = transform.getScale();
-                transform.setScale(currentScale.x, n.floatValue());
-            }
-            return;
-        }
-
-        if (component instanceof SpriteComponent sc) {
-            if (fields.containsKey("spriteAssetPath") && fields.get("spriteAssetPath") instanceof String s) {
-                sc.setSpriteAssetPath(s);
-                if (s != null && !s.isBlank()) {
-                    try {
-                        Path realPath = AssetManager.getAssetPath().resolve(s);
-                        Sprite sprite = SpriteLoader.loadFromFile(realPath);
-                        sc.setSprite(sprite);
-                    } catch (Exception e) {
-                        System.err.println("Failed to reload sprite: " + s);
-                    }
-                }
-            }
-            if (fields.containsKey("sortingLayer") && fields.get("sortingLayer") instanceof String s) {
-                sc.setSortingLayer(s);
-            }
-            if (fields.containsKey("sortingOrder") && fields.get("sortingOrder") instanceof Number n) {
-                sc.setSortingOrder(n.intValue());
-            }
-            return;
-        }
-
-        if (component instanceof Tilemap tilemap) {
-            if (fields.containsKey("tileSize") && fields.get("tileSize") instanceof Number n) {
-                tilemap.setTileSize(n.intValue());
-            }
-            if (fields.containsKey("pixelsPerUnit") && fields.get("pixelsPerUnit") instanceof Number n) {
-                tilemap.setPixelsPerUnit(n.floatValue());
-            }
-            if (fields.containsKey("tilesetPath") && fields.get("tilesetPath") instanceof String s) {
-                tilemap.setTilesetPath(s);
-                tilemap.loadTileset();
-            }
-            if (fields.containsKey("sortingLayer") && fields.get("sortingLayer") instanceof String s) {
-                tilemap.setSortingLayer(s);
-            }
-            if (fields.containsKey("sortingOrder") && fields.get("sortingOrder") instanceof Number n) {
-                tilemap.setSortingOrder(n.intValue());
-            }
-            if (fields.containsKey("tiles") && fields.get("tiles") instanceof String tilesStr) {
-                String[] entries = tilesStr.split(";");
-                for (String entry : entries) {
-                    if (entry.isBlank()) continue;
-                    String[] kv = entry.split(":");
-                    String[] xy = kv[0].split(",");
-                    int x = Integer.parseInt(xy[0]);
-                    int y = Integer.parseInt(xy[1]);
-                    int id = Integer.parseInt(kv[1]);
-                    tilemap.setTile(x, y, id);
-                }
-            }
-            return;
-        }
-
-        if (component instanceof UIButton btn) {
-            if (fields.containsKey("UIx") && fields.get("UIx") instanceof Number n)
-                btn.setX(n.floatValue());
-            if (fields.containsKey("UIy") && fields.get("UIy") instanceof Number n)
-                btn.setY(n.floatValue());
-            if (fields.containsKey("UIwidth") && fields.get("UIwidth") instanceof Number n)
-                btn.setWidth(n.floatValue());
-            if (fields.containsKey("UIheight") && fields.get("UIheight") instanceof Number n)
-                btn.setHeight(n.floatValue());
-            if (fields.containsKey("visible") && fields.get("visible") instanceof Boolean b)
-                btn.setVisible(b);
-            if (fields.containsKey("UIorder") && fields.get("UIorder") instanceof Number n)
-                btn.setOrder(n.intValue());
-            if (fields.containsKey("UIpivotX") && fields.get("UIpivotX") instanceof Number n)
-                btn.setPivotX(n.floatValue());
-            if (fields.containsKey("UIpivotY") && fields.get("UIpivotY") instanceof Number n)
-                btn.setPivotY(n.floatValue());
-            if (fields.containsKey("normalSpritePath") && fields.get("normalSpritePath") instanceof String s)
-                btn.setNormalSpritePath(s);
-            if (fields.containsKey("hoverSpritePath") && fields.get("hoverSpritePath") instanceof String s)
-                btn.setHoverSpritePath(s);
-            if (fields.containsKey("pressedSpritePath") && fields.get("pressedSpritePath") instanceof String s)
-                btn.setPressedSpritePath(s);
-
-            btn.setNormalColor(extractUIColor(fields, "normalColor"));
-            btn.setHoverColor(extractUIColor(fields, "hoverColor"));
-            btn.setPressedColor(extractUIColor(fields, "pressedColor"));
-
-            return;
-        }
-
-        if(component instanceof UIPanel panel){
-            if (fields.containsKey("UIx") && fields.get("UIx") instanceof Number n)
-                panel.setX(n.floatValue());
-            if (fields.containsKey("UIy") && fields.get("UIy") instanceof Number n)
-                panel.setY(n.floatValue());
-            if (fields.containsKey("UIwidth") && fields.get("UIwidth") instanceof Number n)
-                panel.setWidth(n.floatValue());
-            if (fields.containsKey("UIheight") && fields.get("UIheight") instanceof Number n)
-                panel.setHeight(n.floatValue());
-            if(fields.containsKey("visible") && fields.get("visible") instanceof Boolean b)
-                panel.setVisible(b);
-            if (fields.containsKey("UIorder") && fields.get("UIorder") instanceof Number n)
-                panel.setOrder(n.intValue());
-            if (fields.containsKey("UIpivotX") && fields.get("UIpivotX") instanceof Number n)
-                panel.setPivotX(n.floatValue());
-            if (fields.containsKey("UIpivotY") && fields.get("UIpivotY") instanceof Number n)
-                panel.setPivotY(n.floatValue());
-
-            panel.setColor(extractUIColor(fields, "color"));
-
-            return;
-        }
-
-        if(component instanceof UIText txt){
-            if (fields.containsKey("UIx") && fields.get("UIx") instanceof Number n)
-                txt.setX(n.floatValue());
-            if (fields.containsKey("UIy") && fields.get("UIy") instanceof Number n)
-                txt.setY(n.floatValue());
-            if (fields.containsKey("UIwidth") && fields.get("UIwidth") instanceof Number n)
-                txt.setWidth(n.floatValue());
-            if (fields.containsKey("UIheight") && fields.get("UIheight") instanceof Number n)
-                txt.setHeight(n.floatValue());
-            if(fields.containsKey("visible") && fields.get("visible") instanceof Boolean b)
-                txt.setVisible(b);
-            if (fields.containsKey("UIorder") && fields.get("UIorder") instanceof Number n)
-                txt.setOrder(n.intValue());
-            if (fields.containsKey("UIpivotX") && fields.get("UIpivotX") instanceof Number n)
-                txt.setPivotX(n.floatValue());
-            if (fields.containsKey("UIpivotY") && fields.get("UIpivotY") instanceof Number n)
-                txt.setPivotY(n.floatValue());
-            if(fields.containsKey("text") && fields.get("text") instanceof String s)
-                txt.setText((String) fields.get("text"));
-            if(fields.containsKey("fontSize") && fields.get("fontSize") instanceof Number n)
-                txt.setFontSize(n.intValue());
-            if(fields.containsKey("fontName") && fields.get("fontName") instanceof String s)
-                txt.setFontName((String) fields.get("fontName"));
-            if(fields.containsKey("fontAssetPath") && fields.get("fontAssetPath") instanceof String s)
-                txt.setFontAssetPath((String) fields.get("fontAssetPath"));
-
-            txt.setColor(extractUIColor(fields, "color"));
-
-            return;
-        }
-
-        if (component instanceof UIImage image) {
-            if (fields.containsKey("UIx") && fields.get("UIx") instanceof Number n)
-                image.setX(n.floatValue());
-            if (fields.containsKey("UIy") && fields.get("UIy") instanceof Number n)
-                image.setY(n.floatValue());
-            if (fields.containsKey("UIwidth") && fields.get("UIwidth") instanceof Number n)
-                image.setWidth(n.floatValue());
-            if (fields.containsKey("UIheight") && fields.get("UIheight") instanceof Number n)
-                image.setHeight(n.floatValue());
-            if (fields.containsKey("visible") && fields.get("visible") instanceof Boolean b)
-                image.setVisible(b);
-            if (fields.containsKey("UIorder") && fields.get("UIorder") instanceof Number n)
-                image.setOrder(n.intValue());
-            if (fields.containsKey("UIpivotX") && fields.get("UIpivotX") instanceof Number n)
-                image.setPivotX(n.floatValue());
-            if (fields.containsKey("UIpivotY") && fields.get("UIpivotY") instanceof Number n)
-                image.setPivotY(n.floatValue());
-            if (fields.containsKey("spriteAssetPath") && fields.get("spriteAssetPath") instanceof String s)
-                image.setSpriteAssetPath(s);
-
-            image.setTint(extractUIColor(fields, "tint"));
-
-            return;
-        }
-
         for (Map.Entry<String, Object> entry : fields.entrySet()) {
-            try {
-                Field field = component.getClass().getDeclaredField(entry.getKey());
-                field.setAccessible(true);
-                Class<?> type = field.getType();
-                Object value = entry.getValue();
+            String key = entry.getKey();
+            Object value = entry.getValue();
 
-                if (type == float.class && value instanceof Number number) {
-                    field.setFloat(component, number.floatValue());
-                } else if (type == int.class && value instanceof Number number) {
-                    field.setInt(component, number.intValue());
-                } else if (type == boolean.class && value instanceof Boolean bool) {
-                    field.setBoolean(component, bool);
-                } else if (type == String.class) {
-                    field.set(component, value != null ? value.toString() : null);
-                }
-            } catch (Exception ignored) {
+            // Normalizza il nome: rimuovi prefisso "UI" se presente (compatibilità dati vecchi)
+            String normalizedKey = key;
+            if (key.startsWith("UI") && key.length() > 2) {
+                normalizedKey = Character.toLowerCase(key.charAt(2)) + key.substring(3);
             }
+
+            Field field = findField(component.getClass(), normalizedKey);
+
+            if (field != null) {
+                try {
+                    field.setAccessible(true);
+                    Class<?> type = field.getType();
+
+                    // Tipi primitivi / wrapper
+                    if (type == float.class && value instanceof Number n) {
+                        field.setFloat(component, n.floatValue());
+                    } else if (type == int.class && value instanceof Number n) {
+                        field.setInt(component, n.intValue());
+                    } else if (type == boolean.class && value instanceof Boolean b) {
+                        field.setBoolean(component, b);
+                    } else if (type == String.class) {
+                        field.set(component, value != null ? value.toString() : null);
+                    } else if (type == double.class && value instanceof Number n) {
+                        field.setDouble(component, n.doubleValue());
+                    } else if (type == long.class && value instanceof Number n) {
+                        field.setLong(component, n.longValue());
+                    }
+                    // vector2f
+                    else if (type == core.lib.math.vector2f.class && value instanceof String s) {
+                        String[] parts = s.split(",");
+                        if (parts.length == 2) {
+                            float x = Float.parseFloat(parts[0]);
+                            float y = Float.parseFloat(parts[1]);
+                            field.set(component, new core.lib.math.vector2f(x, y));
+                        }
+                    }
+                    // vector2D
+                    else if (type == core.lib.math.vector2D.class && value instanceof String s) {
+                        String[] parts = s.split(",");
+                        if (parts.length == 2) {
+                            float x = Float.parseFloat(parts[0]);
+                            float y = Float.parseFloat(parts[1]);
+                            field.set(component, new core.lib.math.vector2D(x, y));
+                        }
+                    }
+                    // UIColor
+                    else if (type == UIColor.class && value instanceof Map<?, ?> map) {
+                        float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
+                        if (map.get("r") instanceof Number n) r = n.floatValue();
+                        if (map.get("g") instanceof Number n) g = n.floatValue();
+                        if (map.get("b") instanceof Number n) b = n.floatValue();
+                        if (map.get("a") instanceof Number n) a = n.floatValue();
+                        field.set(component, new UIColor(r, g, b, a));
+                    }
+                    // Tilemap tiles string
+                    else if (component instanceof Tilemap tilemap && normalizedKey.equals("tiles") && value instanceof String tilesStr) {
+                        String[] entries = tilesStr.split(";");
+                        for (String tileEntry : entries) {
+                            if (tileEntry.isBlank()) continue;
+                            String[] kv = tileEntry.split(":");
+                            String[] xy = kv[0].split(",");
+                            int x = Integer.parseInt(xy[0]);
+                            int y = Integer.parseInt(xy[1]);
+                            int id = Integer.parseInt(kv[1]);
+                            tilemap.setTile(x, y, id);
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Failed to apply field " + key + " to " + component.getClass().getSimpleName() + ": " + e.getMessage());
+                }
+            } else {
+                // Campo non trovato: prova il setter
+                applyViaSetter(component, normalizedKey, value);
+            }
+        }
+    }
+
+    private static Field findField(Class<?> clazz, String name) {
+        while (clazz != null && clazz != Object.class) {
+            try {
+                return clazz.getDeclaredField(name);
+            } catch (NoSuchFieldException e) {
+                clazz = clazz.getSuperclass();
+            }
+        }
+        return null;
+    }
+
+    private static void applyViaSetter(Component component, String key, Object value) {
+        String setterName = "set" + Character.toUpperCase(key.charAt(0)) + key.substring(1);
+        try {
+            for (var method : component.getClass().getMethods()) {
+                if (method.getName().equals(setterName) && method.getParameterCount() == 1) {
+                    Class<?> paramType = method.getParameterTypes()[0];
+                    if (paramType == float.class && value instanceof Number n) {
+                        method.invoke(component, n.floatValue());
+                    } else if (paramType == int.class && value instanceof Number n) {
+                        method.invoke(component, n.intValue());
+                    } else if (paramType == boolean.class && value instanceof Boolean b) {
+                        method.invoke(component, b);
+                    } else if (paramType == String.class && value instanceof String s) {
+                        method.invoke(component, s);
+                    } else if (paramType == UIColor.class && value instanceof Map<?, ?> map) {
+                        float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
+                        if (map.get("r") instanceof Number n) r = n.floatValue();
+                        if (map.get("g") instanceof Number n) g = n.floatValue();
+                        if (map.get("b") instanceof Number n) b = n.floatValue();
+                        if (map.get("a") instanceof Number n) a = n.floatValue();
+                        method.invoke(component, new UIColor(r, g, b, a));
+                    }
+                    return;
+                }
+            }
+        } catch (Exception ignored) {
         }
     }
 
