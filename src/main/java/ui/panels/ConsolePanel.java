@@ -30,20 +30,8 @@ public class ConsolePanel implements EditorPanel {
             ImGui.openPopup("ConsoleOptionsMenu");
         }
 
-        for(Log log : Logs.logs) {
-            ImGui.textColored(0.7f, 0.9f, 1.0f, 1.0f, log.msg); // Normal
-        }
-
-        for(Log log : Logs.logs_warning){
-            ImGui.textColored(1.0f, 0.8f, 0.2f, 1.0f, log.msg); // Waring
-        }
-
-        for(Log log : Logs.logs_error){
-            ImGui.textColored(1.0f, 0.25f, 0.25f, 1.0f, log.msg); // Error
-        }
-
-        for(Log log : Logs.logs_success){
-            ImGui.textColored(0.2f, 0.8f, 0.2f, 1.0f, log.msg); // Success
+        for(Log log : Logs.all) {
+            drawLog(log);
         }
 
         optionsMenu();
@@ -51,11 +39,36 @@ public class ConsolePanel implements EditorPanel {
         ImGui.end();
     }
 
+    private void drawLog(Log log) {
+        float r = 0.7f;
+        float g = 0.9f;
+        float b = 1.0f;
+        float a = 1.0f;
+
+        if (log.type == Log.Type.WARNING) {
+            r = 1.0f;
+            g = 0.8f;
+            b = 0.2f;
+        } else if (log.type == Log.Type.ERROR) {
+            r = 1.0f;
+            g = 0.25f;
+            b = 0.25f;
+        } else if (log.type == Log.Type.SUCCESS) {
+            r = 0.2f;
+            g = 0.8f;
+            b = 0.2f;
+        }
+
+        ImGui.pushTextWrapPos();
+        ImGui.textColored(r, g, b, a, log.msg);
+        ImGui.popTextWrapPos();
+    }
+
     @Override
     public void optionsMenu(){
         if (ImGui.beginPopup("ConsoleOptionsMenu")) {
             if (ImGui.menuItem("Clear console")) {
-                Logs.logs.clear();
+                Logs.clear();
             }
 
             ImGui.endPopup();

@@ -41,6 +41,8 @@ public class Engine {
 
     private static boolean isInPlayMode = false;
     private boolean isInitialized = false;
+    private Scene editorScene;
+    private Scene runtimeScene;
 
     private static float deltaTime = 0.0f;
     private static double lastFrameTime = 0.0;
@@ -101,10 +103,15 @@ public class Engine {
         editorUI.getContext().setEngine(this);
         editorUI.getContext().addSceneChangeListener(() -> {
             Scene newScene = editorUI.getContext().getCurrentScene();
-            if (sceneRenderer != null && newScene != null) {
-                sceneRenderer.setScene(newScene);
+
+            if (!isInPlayMode) {
+                editorScene = newScene;
+                currentScene = newScene;
+
+                if (sceneRenderer != null && newScene != null) {
+                    sceneRenderer.setScene(newScene);
+                }
             }
-            currentScene = newScene;
         });
 
         ScriptComponentRegistry.refresh();
@@ -113,6 +120,7 @@ public class Engine {
         scriptAutoRefreshWatcher.start();
 
         loadSceneFromProjectFileOrDefault();
+        editorScene = currentScene;
         editorUI.getContext().setCurrentScene(currentScene);
         sceneRenderer.setScene(currentScene);
     }
@@ -132,17 +140,11 @@ public class Engine {
             imguiLayer.startFrame();
 
             if (isInPlayMode && !isInitialized) {
-                awakeScene();
-                startScene();
-                registerAllColliders();
-                isInitialized = true;
-                editorUI.setShowGameView(true);
+                enterPlayMode();
             }
 
             if (!isInPlayMode && isInitialized) {
-                destroyScene();
-                isInitialized = false;
-                editorUI.setShowGameView(false);
+                exitPlayMode();
             }
 
             if (isInPlayMode) {
@@ -191,6 +193,50 @@ public class Engine {
         for (GameObject rootObject : currentScene.getRootObjects()) {
             rootObject.getComponents().forEach(Component::start);
         }
+    }
+
+    private void enterPlayMode() {
+        if (currentScene == null) {
+            isInPlayMode = false;
+            return;
+        }
+
+        editorScene = currentScene;
+        runtimeScene = SceneSerializer.clone(editorScene);
+
+        if (runtimeScene == null) {
+            isInPlayMode = false;
+            return;
+        }
+
+        currentScene = runtimeScene;
+        editorUI.getContext().setCurrentScene(runtimeScene);
+        sceneRenderer.setScene(runtimeScene);
+
+        accumulator = 0.0f;
+
+        awakeScene();
+        startScene();
+        registerAllColliders();
+
+        isInitialized = true;
+        editorUI.setShowGameView(true);
+    }
+
+    private void exitPlayMode() {
+        destroyScene();
+
+        PhysicsWorld2D.getInstance().clearColliders();
+
+        runtimeScene = null;
+        currentScene = editorScene;
+
+        editorUI.getContext().setCurrentScene(editorScene);
+        sceneRenderer.setScene(editorScene);
+
+        isInitialized = false;
+        accumulator = 0.0f;
+        editorUI.setShowGameView(false);
     }
 
     private void awakeScene() {
@@ -323,10 +369,18 @@ public class Engine {
     }
 
     public void startPlayMode() {
+        if (isInPlayMode || currentScene == null) {
+            return;
+        }
+
         isInPlayMode = true;
     }
 
     public void stopPlayMode() {
+        if (!isInPlayMode) {
+            return;
+        }
+
         isInPlayMode = false;
     }
 
@@ -335,12 +389,18 @@ public class Engine {
     }
 
     public void openScene(Path scenePath) {
+        if (isInPlayMode) {
+            throw new IllegalStateException("Cannot open a scene while Play Mode is active.");
+        }
+
         if (scenePath == null || !Files.exists(scenePath)) {
             throw new IllegalArgumentException("Invalid scene path: " + scenePath);
         }
 
         try {
             currentScene = SceneSerializer.load(scenePath);
+            editorScene = currentScene;
+            runtimeScene = null;
             currentScenePath = scenePath;
 
             if (editorUI != null) {
@@ -359,17 +419,23 @@ public class Engine {
     }
 
     public static void saveCurrentScenePublic() {
-        if (currentScene == null) {
+        Scene sceneToSave = currentScene;
+
+        if (isInPlayMode) {
+            throw new IllegalStateException("Cannot save while Play Mode is active.");
+        }
+
+        if (sceneToSave == null) {
             throw new IllegalStateException("Cannot save: current scene is null");
         }
 
         try {
             if (currentScenePath == null) {
-                currentScenePath = createDefaultScenePath(currentScene);
+                currentScenePath = createDefaultScenePath(sceneToSave);
             }
 
             Files.createDirectories(currentScenePath.getParent());
-            SceneSerializer.save(currentScene, currentScenePath);
+            SceneSerializer.save(sceneToSave, currentScenePath);
             updateStartupScene(currentScenePath);
             ProjectSettings.save();
 
@@ -611,13 +677,20 @@ public class Engine {
     }
 
     public void onSceneChanged(Scene scene) {
+        if (isInPlayMode) {
+            return;
+        }
+
         if (sceneRenderer != null) {
             sceneRenderer.setScene(scene);
         }
         if (editorUI != null) {
             editorUI.getContext().setCurrentScene(scene);
         }
+
         currentScene = scene;
+        editorScene = scene;
+        runtimeScene = null;
     }
 
     private void cleanup() {

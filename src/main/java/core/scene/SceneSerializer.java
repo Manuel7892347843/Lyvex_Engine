@@ -43,6 +43,18 @@ public class SceneSerializer {
         Files.writeString(path, GSON.toJson(data));
     }
 
+    public static Scene clone(Scene scene) {
+        if (scene == null) {
+            return null;
+        }
+
+        SceneData data = toData(scene);
+        String json = GSON.toJson(data);
+        SceneData clonedData = GSON.fromJson(json, SceneData.class);
+
+        return fromData(clonedData);
+    }
+
     public static Scene load(Path path) throws IOException {
         String json = Files.readString(path);
         SceneData data = GSON.fromJson(json, SceneData.class);

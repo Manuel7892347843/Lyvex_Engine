@@ -26,7 +26,13 @@ import core.log.Log;
 import core.physics.BoxCollider2D;
 import core.physics.CircleCollider2D;
 import core.physics.Collider2D;
-import core.physics.RaycastHit2D;
+//import core.physics.RaycastHit2D;
+import javax.tools.Diagnostic;
+import javax.tools.DiagnosticCollector;
+import javax.tools.JavaFileObject;
+import javax.tools.StandardJavaFileManager;
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 public class ScriptComponentRegistry {
     private static final List<Class<? extends Component>> COMPONENT_CLASSES = new ArrayList<>();
@@ -72,11 +78,19 @@ public class ScriptComponentRegistry {
 
         Path compiledPath = ProjectManager.getCompiledPath();
 
+        try {
+            Files.createDirectories(compiledPath);
+        } catch (IOException e) {
+            Log.logError("Failed to create compiled scripts folder.", e);
+            return;
+        }
+
         try (Stream<Path> paths = Files.walk(scriptsRoot)) {
             paths.filter(path -> path.toString().endsWith(".java"))
                     .forEach(path -> sourceFiles.add(path.toString()));
         } catch (IOException e) {
-            Log.logError("Failed to scan script sources: \n" + e);
+            Log.logError("Failed to scan script sources.", e);
+            return;
         }
 
         if (sourceFiles.isEmpty()) {
@@ -85,22 +99,84 @@ public class ScriptComponentRegistry {
 
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) {
-            Log.logError("No Java compiler available. Run with a JDK, not a JRE.");
+            Log.logError("No Java compiler available. Run Lyvex with a JDK, not a JRE.");
+            return;
         }
 
-        String classpath = ProjectManager.getCompiledPath().toString() + File.pathSeparator + System.getProperty("java.class.path");
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
 
-        List<String> args = new ArrayList<>();
-        args.add("-classpath");
-        args.add(classpath);
-        args.add("-d");
-        args.add(compiledPath.toString());
-        args.addAll(sourceFiles);
+        try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(
+                diagnostics,
+                Locale.getDefault(),
+                StandardCharsets.UTF_8
+        )) {
+            Iterable<? extends JavaFileObject> compilationUnits =
+                    fileManager.getJavaFileObjectsFromStrings(sourceFiles);
 
-        int result = compiler.run(null, null, null, args.toArray(new String[0]));
-        if (result != 0) {
-            Log.logError("Script compilation failed with exit code: \n" + result);
+            String classpath = ProjectManager.getCompiledPath().toString()
+                    + File.pathSeparator
+                    + System.getProperty("java.class.path");
+
+            List<String> options = new ArrayList<>();
+            options.add("-classpath");
+            options.add(classpath);
+            options.add("-d");
+            options.add(compiledPath.toString());
+
+            JavaCompiler.CompilationTask task = compiler.getTask(
+                    null,
+                    fileManager,
+                    diagnostics,
+                    options,
+                    null,
+                    compilationUnits
+            );
+
+            boolean success = Boolean.TRUE.equals(task.call());
+
+            if (!success) {
+                Log.logError(formatScriptDiagnostics(diagnostics));
+                return;
+            }
+
+            Log.logSuccess("Scripts compiled successfully.");
+
+        } catch (IOException e) {
+            Log.logError("Failed during script compilation.", e);
         }
+    }
+
+    private static String formatScriptDiagnostics(DiagnosticCollector<JavaFileObject> diagnostics) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("Script compilation failed:");
+
+        for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
+            builder.append("\n\n");
+
+            Diagnostic.Kind kind = diagnostic.getKind();
+            builder.append(kind);
+
+            JavaFileObject source = diagnostic.getSource();
+            if (source != null) {
+                builder.append(" in ")
+                        .append(Path.of(source.toUri()).getFileName());
+            }
+
+            if (diagnostic.getLineNumber() >= 0) {
+                builder.append(" at line ")
+                        .append(diagnostic.getLineNumber());
+            }
+
+            if (diagnostic.getColumnNumber() >= 0) {
+                builder.append(", column ")
+                        .append(diagnostic.getColumnNumber());
+            }
+
+            builder.append("\n")
+                    .append(diagnostic.getMessage(Locale.getDefault()));
+        }
+
+        return builder.toString();
     }
 
     private static void loadCompiledComponents(Path scriptsRoot) {
@@ -115,7 +191,7 @@ public class ScriptComponentRegistry {
                         .forEach(path -> tryRegisterScriptClass(path, scriptsRoot, classLoader));
             }
         } catch (IOException e) {
-            Log.logError("Failed to load compiled components: \n" + e);
+            Log.logError("Failed to load compiled components.", e);
         }
     }
 
@@ -132,8 +208,10 @@ public class ScriptComponentRegistry {
                 Class<? extends Component> componentClass = (Class<? extends Component>) rawClass;
                 COMPONENT_CLASSES.add(componentClass);
             }
-        } catch (ClassNotFoundException ignored) {
-            Log.logError("Could not load script class: \n" + className);
+        } catch (ClassNotFoundException e) {
+            Log.logError("Could not load script class: " + className, e);
+        } catch (Throwable throwable) {
+            Log.logError("Script class failed while loading: " + className, throwable);
         }
     }
 

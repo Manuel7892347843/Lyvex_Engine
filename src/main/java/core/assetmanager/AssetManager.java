@@ -29,15 +29,18 @@ public class AssetManager {
         String content =
                 (packageName.isBlank() ? "" : "package " + packageName + ";\n\n") +
                         "import core.component.Component;\n" +
-                        "import core.gameobject.GameObject;\n" +
+                        "\n" +
                         "public class " + className + " extends Component {\n" +
                         "    public " + className + "() {\n" +
+                        "\n" +
                         "    }\n\n" +
                         "    @Override\n" +
                         "    public void start() {\n" +
+                        "\n" +
                         "    }\n\n" +
                         "    @Override\n" +
                         "    public void update() {\n" +
+                        "\n" +
                         "    }\n" +
                         "}\n";
 
