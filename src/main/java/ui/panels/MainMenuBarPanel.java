@@ -3,15 +3,20 @@ package ui.panels;
 import core.Engine;
 import core.ProjectManager;
 import core.ProjectSettings;
+import core.assetmanager.AssetManager;
 import core.audio.AudioManager;
+import core.gameobject.GameObject;
 import core.input.InputManager;
 import core.input.Key;
 import core.lib.SceneManager;
+import core.log.Log;
 import core.physics.PhysicsLayerManager;
+import core.scene.SceneSerializer;
 import core.sorting.SortingLayerManager;
 import imgui.ImGui;
 import imgui.flag.ImGuiCond;
 import imgui.flag.ImGuiDir;
+import imgui.flag.ImGuiWindowFlags;
 import imgui.type.ImBoolean;
 import imgui.type.ImInt;
 import imgui.type.ImString;
@@ -26,6 +31,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.ZipFile;
 
 public class MainMenuBarPanel implements EditorPanel {
     private final int POS_X = 0;
@@ -40,6 +46,9 @@ public class MainMenuBarPanel implements EditorPanel {
     private final float[] masterVolume = new float[]{1.0f};
     private final ImBoolean audioMuted = new ImBoolean(false);
     private final ImString codeEditorPathInput = new ImString("", 256);
+    private final ImString zipName = new ImString("Assets.zip", 256);
+    private final ImBoolean zipExportOpen = new ImBoolean(false);
+    private Path zipDestinationDirectory;
 
     @Override
     public void init(){
@@ -67,6 +76,26 @@ public class MainMenuBarPanel implements EditorPanel {
             }
 
             if (ImGui.beginMenu("Edit")) {
+                if(ImGui.button("Delete")){
+                    context.getSelectedGameObject().destroy(context);
+                }
+                if (ImGui.button("Duplicate")) {
+                    GameObject selected = context.getSelectedGameObject();
+
+                    if (selected == null) {
+                        Log.logWarning("No GameObject selected.");
+                    } else {
+                        GameObject duplicate = SceneSerializer.cloneGameObject(selected);
+
+                        if (duplicate != null) {
+                            duplicate.getTransform().translate(new core.lib.math.vector2D(0.5f, 0.5f));
+                            context.getCurrentScene().addRootObject(duplicate);
+                            context.setSelectedGameObject(duplicate);
+                            context.setSceneDirty(true);
+                            Log.logSuccess("Duplicated GameObject: " + selected.getName());
+                        }
+                    }
+                }
                 ImGui.endMenu();
             }
 
@@ -81,11 +110,23 @@ public class MainMenuBarPanel implements EditorPanel {
                 ImGui.endMenu();
             }
 
+            if(ImGui.beginMenu("Tools")){
+                if(ImGui.menuItem("Zip Assets")){
+                    zipExportOpen.set(true);
+                }
+
+                ImGui.endMenu();
+            }
+
             ImGui.endMainMenuBar();
         }
 
         if (projectSettingsOpen.get()) {
             drawProjectSettingsWindow(context);
+        }
+
+        if (zipExportOpen.get()) {
+            drawZipExportWindow();
         }
     }
     private void syncCodeEditorPathInput() {
@@ -519,6 +560,73 @@ public class MainMenuBarPanel implements EditorPanel {
 
         ImGui.separator();
         ImGui.textDisabled("Tip: Uncheck to prevent collisions between layers.");
+    }
+
+    private void drawZipExportWindow() {
+        float windowWidth = 500.0f;
+        float windowHeight = 180.0f;
+
+        ImGui.setNextWindowSize(windowWidth, windowHeight, ImGuiCond.Always);
+        ImGui.setNextWindowPos(
+                (1920.0f - windowWidth) * 0.5f,
+                (1080.0f - windowHeight) * 0.5f,
+                ImGuiCond.Always
+        );
+
+        int windowFlags = ImGuiWindowFlags.NoMove |
+                ImGuiWindowFlags.NoResize |
+                ImGuiWindowFlags.NoCollapse;
+
+        if (ImGui.begin("Export Assets ZIP", zipExportOpen, windowFlags)) {
+            ImGui.text("Zip your Assets");
+            ImGui.separator();
+
+            ImGui.inputText("Zip file name", zipName);
+
+            if (zipDestinationDirectory == null) {
+                ImGui.text("Destination: not selected");
+            } else {
+                ImGui.textWrapped("Destination: " + zipDestinationDirectory);
+            }
+
+            if (ImGui.button("Choose destination")) {
+                JFileChooser chooser = new JFileChooser();
+                chooser.setDialogTitle("Choose ZIP destination folder");
+                chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+                chooser.setAcceptAllFileFilterUsed(false);
+
+                int result = chooser.showSaveDialog(null);
+                if (result == JFileChooser.APPROVE_OPTION) {
+                    zipDestinationDirectory = chooser.getSelectedFile().toPath();
+                }
+            }
+
+            ImGui.sameLine();
+
+            if (ImGui.button("Zip")) {
+                if (zipDestinationDirectory == null) {
+                    Log.logWarning("Choose a destination folder before exporting Assets.");
+                } else {
+                    try {
+                        AssetManager.exportAllAssetsToZip(zipDestinationDirectory, zipName.get());
+                        Log.logSuccess("Assets exported to ZIP successfully.");
+                        zipExportOpen.set(false);
+                    } catch (IOException e) {
+                        Log.logError("Failed to export Assets ZIP.", e);
+                    } catch (IllegalArgumentException e) {
+                        Log.logError(e.getMessage());
+                    }
+                }
+            }
+
+            ImGui.sameLine();
+
+            if (ImGui.button("Cancel")) {
+                zipExportOpen.set(false);
+            }
+        }
+
+        ImGui.end();
     }
 
     private void saveSceneSafely() {

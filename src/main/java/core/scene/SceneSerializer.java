@@ -415,6 +415,32 @@ public class SceneSerializer {
         }
     }
 
+    public static GameObject cloneGameObject(GameObject gameObject) {
+        if (gameObject == null) {
+            return null;
+        }
+
+        GameObjectData data = toData(gameObject);
+        data.id = java.util.UUID.randomUUID().toString();
+        data.name = data.name + " Copy";
+
+        return fromDataWithNewIds(data);
+    }
+
+    private static GameObject fromDataWithNewIds(GameObjectData data) {
+        GameObject object = fromData(data);
+        assignNewIdsRecursive(object);
+        return object;
+    }
+
+    private static void assignNewIdsRecursive(GameObject object) {
+        object.setId(java.util.UUID.randomUUID().toString());
+
+        for (GameObject child : object.getChildren()) {
+            assignNewIdsRecursive(child);
+        }
+    }
+
     private static UIColor extractUIColor(Map<String, Object> fields, String key) {
         Object value = fields.get(key);
         if (value == null) return null;
