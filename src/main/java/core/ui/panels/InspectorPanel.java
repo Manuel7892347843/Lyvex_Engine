@@ -1,4 +1,4 @@
-package ui.panels;
+package core.ui.panels;
 
 import core.ProjectSettings;
 import core.assetmanager.AssetManager;
@@ -27,8 +27,8 @@ import imgui.flag.ImGuiWindowFlags;
 import imgui.type.ImBoolean;
 import imgui.type.ImInt;
 import imgui.type.ImString;
-import ui.EditorContext;
-import ui.EditorPanel;
+import core.ui.EditorContext;
+import core.ui.EditorPanel;
 
 import java.io.IOException;
 import java.lang.reflect.Field;

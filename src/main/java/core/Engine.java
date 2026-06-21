@@ -17,9 +17,9 @@ import core.scene.SceneSerializer;
 import core.scriptutil.ScriptAutoRefreshWatcher;
 import core.scriptutil.ScriptComponentRegistry;
 import org.lwjgl.opengl.GL;
-import ui.EditorContext;
-import ui.EditorUI;
-import ui.ImGuiLayer;
+import core.ui.EditorContext;
+import core.ui.EditorUI;
+import core.ui.ImGuiLayer;
 
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;

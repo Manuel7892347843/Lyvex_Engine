@@ -4,7 +4,7 @@ import core.Engine;
 import core.ProjectManager;
 import core.scene.Scene;
 import core.scene.SceneSerializer;
-import ui.EditorContext;
+import core.ui.EditorContext;
 
 import java.io.IOException;
 import java.nio.file.Files;

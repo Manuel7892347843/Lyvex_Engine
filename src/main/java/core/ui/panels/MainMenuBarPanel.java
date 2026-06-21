@@ -1,4 +1,4 @@
-package ui.panels;
+package core.ui.panels;
 
 import core.Engine;
 import core.ProjectManager;
@@ -20,8 +20,8 @@ import imgui.flag.ImGuiWindowFlags;
 import imgui.type.ImBoolean;
 import imgui.type.ImInt;
 import imgui.type.ImString;
-import ui.EditorContext;
-import ui.EditorPanel;
+import core.ui.EditorContext;
+import core.ui.EditorPanel;
 
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;

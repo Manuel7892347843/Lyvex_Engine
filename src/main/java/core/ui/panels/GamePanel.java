@@ -1,11 +1,11 @@
-package ui.panels;
+package core.ui.panels;
 
 import imgui.ImGui;
 import imgui.flag.ImGuiCond;
 import imgui.flag.ImGuiStyleVar;
 import imgui.flag.ImGuiWindowFlags;
-import ui.EditorContext;
-import ui.EditorPanel;
+import core.ui.EditorContext;
+import core.ui.EditorPanel;
 
 public class GamePanel implements EditorPanel {
     private final int POS_X = 350;

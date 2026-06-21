@@ -1,12 +1,12 @@
-package ui.panels;
+package core.ui.panels;
 
 import core.log.Log;
 import core.log.Logs;
 import imgui.ImGui;
 import imgui.flag.ImGuiMouseButton;
 import imgui.flag.ImGuiWindowFlags;
-import ui.EditorContext;
-import ui.EditorPanel;
+import core.ui.EditorContext;
+import core.ui.EditorPanel;
 
 public class ConsolePanel implements EditorPanel {
     private final int POS_X = 0;

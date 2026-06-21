@@ -16,7 +16,7 @@ import core.gameobject.GameObject;
 import core.input.InputManager;
 import core.lib.math.matrix4f;
 import core.scene.Scene;
-import ui.EditorContext;
+import core.ui.EditorContext;
 
 import core.component.ui.*;
 

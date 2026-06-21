@@ -3,7 +3,7 @@ package core.lib;
 import core.component.Component;
 import core.gameobject.GameObject;
 import core.scene.Scene;
-import ui.EditorContext;
+import core.ui.EditorContext;
 
 import java.util.ArrayList;
 import java.util.List;

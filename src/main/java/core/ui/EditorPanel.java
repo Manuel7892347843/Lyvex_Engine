@@ -1,4 +1,4 @@
-package ui;
+package core.ui;
 
 import java.io.IOException;
 

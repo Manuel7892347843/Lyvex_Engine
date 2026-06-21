@@ -1,4 +1,4 @@
-package ui.panels;
+package core.ui.panels;
 
 import core.gameobject.GameObject;
 import core.scene.Scene;
@@ -6,8 +6,8 @@ import imgui.ImGui;
 import imgui.flag.ImGuiCond;
 import imgui.flag.ImGuiTreeNodeFlags;
 import imgui.flag.ImGuiWindowFlags;
-import ui.EditorContext;
-import ui.EditorPanel;
+import core.ui.EditorContext;
+import core.ui.EditorPanel;
 
 public class HierarchyPanel implements EditorPanel {
     private final int POS_X = 0;

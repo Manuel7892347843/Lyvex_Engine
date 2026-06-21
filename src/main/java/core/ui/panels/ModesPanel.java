@@ -1,12 +1,12 @@
-package ui.panels;
+package core.ui.panels;
 
 import core.log.Log;
 import imgui.ImGui;
 import imgui.flag.ImGuiCol;
 import imgui.flag.ImGuiCond;
 import imgui.flag.ImGuiWindowFlags;
-import ui.EditorContext;
-import ui.EditorPanel;
+import core.ui.EditorContext;
+import core.ui.EditorPanel;
 
 public class ModesPanel implements EditorPanel {
     private final int POS_X = 350;

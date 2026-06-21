@@ -1,6 +1,6 @@
 package core.lib;
 
-import ui.EditorContext;
+import core.ui.EditorContext;
 
 public final class Screen {
 

@@ -1,6 +1,7 @@
-package ui;
+package core.ui;
 
-import ui.panels.*;
+import core.ui.panels.*;
+import core.ui.panels.*;
 
 public class EditorUI {
     private final EditorContext context = EditorContext.getInstance();

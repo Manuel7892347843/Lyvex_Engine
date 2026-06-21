@@ -1,10 +1,9 @@
 package core.gameobject;
 
-import core.ProjectManager;
 import core.scene.Scene;
 import core.component.Component;
 import core.component.Transform;
-import ui.EditorContext;
+import core.ui.EditorContext;
 
 import java.util.ArrayList;
 import java.util.Collections;

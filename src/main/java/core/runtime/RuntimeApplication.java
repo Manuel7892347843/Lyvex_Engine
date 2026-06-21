@@ -11,7 +11,7 @@ import core.scene.Scene;
 import core.scene.SceneSerializer;
 import core.scriptutil.ScriptComponentRegistry;
 import org.lwjgl.opengl.GL;
-import ui.EditorContext;
+import core.ui.EditorContext;
 
 import java.io.IOException;
 import java.nio.file.Files;

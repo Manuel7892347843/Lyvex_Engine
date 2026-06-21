@@ -1,4 +1,4 @@
-package ui;
+package core.ui;
 
 import imgui.ImGui;
 import imgui.gl3.ImGuiImplGl3;

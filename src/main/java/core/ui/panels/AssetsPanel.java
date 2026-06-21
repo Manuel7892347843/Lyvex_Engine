@@ -1,4 +1,4 @@
-package ui.panels;
+package core.ui.panels;
 
 import core.ProjectManager;
 import core.ProjectSettings;
@@ -8,8 +8,8 @@ import imgui.ImGui;
 import imgui.flag.ImGuiMouseButton;
 import imgui.flag.ImGuiWindowFlags;
 import imgui.type.ImString;
-import ui.EditorContext;
-import ui.EditorPanel;
+import core.ui.EditorContext;
+import core.ui.EditorPanel;
 
 import java.io.IOException;
 import java.nio.file.Files;

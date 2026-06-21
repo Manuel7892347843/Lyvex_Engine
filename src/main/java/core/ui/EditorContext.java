@@ -1,4 +1,4 @@
-package ui;
+package core.ui;
 
 import core.Engine;
 import core.scene.Scene;

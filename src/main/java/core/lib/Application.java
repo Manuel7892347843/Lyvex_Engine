@@ -2,7 +2,7 @@ package core.lib;
 
 import core.Engine;
 import core.ProjectManager;
-import ui.EditorContext;
+import core.ui.EditorContext;
 
 import java.nio.file.Path;
 
