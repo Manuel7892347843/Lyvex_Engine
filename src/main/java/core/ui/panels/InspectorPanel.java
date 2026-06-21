@@ -1,6 +1,7 @@
 package core.ui.panels;
 
 import core.ProjectSettings;
+import core.annotations.*;
 import core.assetmanager.AssetManager;
 import core.component.Component;
 import core.component.Transform;
@@ -25,6 +26,7 @@ import imgui.flag.ImGuiCond;
 import imgui.flag.ImGuiInputTextFlags;
 import imgui.flag.ImGuiWindowFlags;
 import imgui.type.ImBoolean;
+import imgui.type.ImFloat;
 import imgui.type.ImInt;
 import imgui.type.ImString;
 import core.ui.EditorContext;
@@ -59,25 +61,25 @@ public class InspectorPanel implements EditorPanel {
 
     private SpritePickerTarget currentSpritePicker = null;
 
-    // Campi da NON mostrare mai nell'inspector
+    // Campi da NON mostrare mai nell'inspector (oltre a @HideInInspector)
     private static final Set<String> BLACKLISTED_FIELDS = new HashSet<>(Arrays.asList(
-            "gameObject",      // reference runtime al parent
-            "enabled",         // gestito separatamente se necessario
-            "awoken",          // stato interno
-            "started",         // stato interno
-            "dirty",           // flag interno collider
-            "worldBounds",     // calcolato runtime
-            "inverseMass",     // derivato da mass
-            "acceleration",    // calcolato fisica
-            "forceAccumulator", // calcolato fisica
-            "cachedSprite",    // cache runtime UIText
-            "lastText",        // cache interna
-            "lastFontSize",    // cache interna
-            "lastFontName",    // cache interna
-            "lastFontAssetPath", // cache interna
-            "lastR", "lastG", "lastB", "lastA", // cache interna
-            "hovered", "pressed", // stato runtime UIButton
-            "onClick"          // callback runtime
+            "gameObject",
+            "enabled",
+            "awoken",
+            "started",
+            "dirty",
+            "worldBounds",
+            "inverseMass",
+            "acceleration",
+            "forceAccumulator",
+            "cachedSprite",
+            "lastText",
+            "lastFontSize",
+            "lastFontName",
+            "lastFontAssetPath",
+            "lastR", "lastG", "lastB", "lastA",
+            "hovered", "pressed",
+            "onClick"
     ));
 
     @Override
@@ -135,6 +137,19 @@ public class InspectorPanel implements EditorPanel {
         if (ImGui.beginPopup("AddComponentPopup")) {
             for (Class<? extends Component> componentClass : ScriptComponentRegistry.getComponentClasses()) {
                 String componentName = componentClass.getSimpleName();
+
+                // Mostra @RequireComponent come tooltip
+                RequireComponent req = componentClass.getAnnotation(RequireComponent.class);
+                if (req != null) {
+                    StringBuilder reqText = new StringBuilder("Requires: ");
+                    for (Class<?> reqClass : req.value()) {
+                        reqText.append(reqClass.getSimpleName()).append(" ");
+                    }
+                    ImGui.beginTooltip();
+                    ImGui.textDisabled(reqText.toString());
+                    ImGui.endTooltip();
+                }
+
                 if (ImGui.menuItem(componentName)) {
                     try {
                         Component component = componentClass.getDeclaredConstructor().newInstance();
@@ -155,11 +170,19 @@ public class InspectorPanel implements EditorPanel {
 
         for (Component component : selected.getComponents()) {
             ImGui.separator();
-            String compName = component.getClass().getSimpleName();
+
+            // ============== HEADER ANNOTATION ==============
+            String compName = getComponentDisplayName(component);
             ImGui.text(compName);
 
-            // ============== DISEGNO DINAMICO DEI CAMPI ==============
-            drawComponentFieldsDynamically(component, context);
+            // Badge @ExecuteInEditMode
+            if (component.getClass().isAnnotationPresent(ExecuteInEditMode.class)) {
+                ImGui.sameLine();
+                ImGui.textColored(0.2f, 0.8f, 0.4f, 1.0f, "[Edit Mode]");
+            }
+
+            // ============== DISEGNO DINAMICO DEI CAMPI CON ANNOTATION ==============
+            drawComponentFieldsWithAnnotations(component, context);
 
             // ============== CAMPI SPECIALI PER COMPONENTI SPECIFICI ==============
             if (component instanceof SpriteComponent spriteComponent) {
@@ -209,9 +232,24 @@ public class InspectorPanel implements EditorPanel {
     }
 
     /**
-     * DISEGNO DINAMICO DEI CAMPI - itera su TUTTI i campi della classe e delle superclassi
+     * NUOVO: Ritorna il nome visualizzato del componente (con @Header se presente)
      */
-    private void drawComponentFieldsDynamically(Component component, EditorContext context) {
+    private String getComponentDisplayName(Component component) {
+        Class<?> clazz = component.getClass();
+        Header header = clazz.getAnnotation(Header.class);
+        if (header != null && !header.value().isEmpty()) {
+            return header.value();
+        }
+        return clazz.getSimpleName();
+    }
+
+    /**
+     * NUOVO: DISEGNO CAMPI CON SUPPORTO ANNOTATION
+     * - @ExposeInInspector: mostra il campo
+     * - @Range: slider invece di drag
+     * - @HideInInspector: nasconde il campo
+     */
+    private void drawComponentFieldsWithAnnotations(Component component, EditorContext context) {
         Class<?> clazz = component.getClass();
 
         while (clazz != null && clazz != Object.class) {
@@ -222,13 +260,31 @@ public class InspectorPanel implements EditorPanel {
                     field.setAccessible(true);
                     int mods = field.getModifiers();
 
-                    // Salta campi che non devono essere editati
+                    // Salta campi statici e transient
                     if (Modifier.isStatic(mods) || Modifier.isTransient(mods)) continue;
 
                     String fieldName = field.getName();
 
-                    // Salta campi nella blacklist
+                    // ============== @HideInInspector ==============
+                    // Se c'è @HideInInspector, nascondi SEMPRE (anche se public)
+                    if (field.isAnnotationPresent(HideInInspector.class)) continue;
+
+                    // Salta campi nella blacklist legacy
                     if (BLACKLISTED_FIELDS.contains(fieldName)) continue;
+
+                    // ============== REGOLA UNITY-STYLE ==============
+                    boolean isPublic = Modifier.isPublic(mods);
+                    boolean hasExpose = field.isAnnotationPresent(ExposeInInspector.class);
+
+                    // Visibile se:
+                    // 1. È PUBLIC (come Unity), OPPURE
+                    // 2. Ha @ExposeInInspector (anche se private)
+                    boolean isVisible = isPublic || hasExpose;
+
+                    if (!isVisible) continue;
+
+                    // Prendi @ExposeInInspector se presente (per displayName, tooltip, range)
+                    ExposeInInspector expose = field.getAnnotation(ExposeInInspector.class);
 
                     Class<?> type = field.getType();
                     Object value = field.get(component);
@@ -239,25 +295,51 @@ public class InspectorPanel implements EditorPanel {
                         continue;
                     }
 
-                    // Salta campi che iniziano con underscore (convenzione privati interni)
-                    if (fieldName.startsWith("_")) continue;
-
                     // Salta campi già gestiti da metodi specializzati
                     if (isFieldHandledBySpecializedMethod(component, fieldName)) continue;
+
+                    // Header sezione per @Header su campo
+                    Header fieldHeader = field.getAnnotation(Header.class);
+                    if (fieldHeader != null) {
+                        ImGui.separator();
+                        ImGui.text(fieldHeader.value());
+                    }
+
+                    // Label: usa displayName da @ExposeInInspector se presente,
+                    // altrimenti usa il nome del campo
+                    String label;
+                    if (expose != null && !expose.displayName().isEmpty()) {
+                        label = expose.displayName();
+                    } else {
+                        label = fieldName;
+                    }
+
+                    // Tooltip (solo se c'è @ExposeInInspector con tooltip)
+                    if (expose != null && !expose.tooltip().isEmpty()) {
+                        if (ImGui.isItemHovered()) {
+                            ImGui.setTooltip(expose.tooltip());
+                        }
+                    }
 
                     // ============================================
                     // FIX: Campi collisionLayer e collisionMask
                     // ============================================
                     if (fieldName.equals("collisionLayer")) {
-                        drawCollisionLayerField(component, field, fieldName, context);
+                        drawCollisionLayerField(component, field, label, context);
                         continue;
                     }
                     if (fieldName.equals("collisionMask")) {
-                        drawCollisionMaskField(component, field, fieldName, context);
+                        drawCollisionMaskField(component, field, label, context);
                         continue;
                     }
 
-                    drawFieldByType(component, field, fieldName, type, value, context);
+                    // ============== DISEGNO CON @Range ==============
+                    Range range = field.getAnnotation(Range.class);
+                    if (range != null && (type == float.class || type == int.class)) {
+                        drawRangedField(component, field, label, type, range, context);
+                    } else {
+                        drawFieldByType(component, field, label, type, value, context);
+                    }
 
                 } catch (Exception e) {
                     // Campo non accessibile, ignora
@@ -265,6 +347,28 @@ public class InspectorPanel implements EditorPanel {
             }
 
             clazz = clazz.getSuperclass();
+        }
+    }
+
+    /**
+     * NUOVO: Disegna campo con @Range (slider)
+     */
+    private void drawRangedField(Component component, Field field, String label, Class<?> type,
+                                 Range range, EditorContext context) throws IllegalAccessException {
+        if (type == float.class) {
+            float value = field.getFloat(component);
+            ImFloat imFloat = new ImFloat(value);
+            if (ImGui.sliderFloat(label, imFloat.getData(), range.min(), range.max())) {
+                field.setFloat(component, imFloat.get());
+                context.setSceneDirty(true);
+            }
+        } else if (type == int.class) {
+            int value = field.getInt(component);
+            ImInt imInt = new ImInt(value);
+            if (ImGui.sliderInt(label, imInt.getData(), (int) range.min(), (int) range.max())) {
+                field.setInt(component, imInt.get());
+                context.setSceneDirty(true);
+            }
         }
     }
 
@@ -296,7 +400,7 @@ public class InspectorPanel implements EditorPanel {
     }
 
     /**
-     * NUOVO: Dropdown per selezionare il collisionLayer con i nomi dei Physics Layer
+     * Dropdown per selezionare il collisionLayer con i nomi dei Physics Layer
      */
     private void drawCollisionLayerField(Component component, Field field, String fieldName, EditorContext context) {
         try {
@@ -330,7 +434,7 @@ public class InspectorPanel implements EditorPanel {
     }
 
     /**
-     * NUOVO: Popup per modificare la collisionMask con checkbox per ogni layer
+     * Popup per modificare la collisionMask con checkbox per ogni layer
      */
     private void drawCollisionMaskField(Component component, Field field, String fieldName, EditorContext context) {
         try {
@@ -462,7 +566,7 @@ public class InspectorPanel implements EditorPanel {
                 return;
             }
 
-            // boolean - FIX: ImGui.checkbox ritorna true se cliccato
+            // boolean
             if (type == boolean.class) {
                 boolean current = field.getBoolean(component);
                 ImBoolean imBool = new ImBoolean(current);
@@ -523,7 +627,7 @@ public class InspectorPanel implements EditorPanel {
                 return;
             }
 
-            // Tipi non supportati - mostra come label read-only
+            // Tipi non supportati
             ImGui.textDisabled(fieldName + " (unsupported: " + type.getSimpleName() + ")");
 
         } catch (Exception e) {

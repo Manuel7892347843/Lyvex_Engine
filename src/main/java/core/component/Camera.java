@@ -1,5 +1,7 @@
 package core.component;
 
+import core.annotations.ExecuteInEditMode;
+import core.annotations.ExposeInInspector;
 import core.lib.math.matrix4f;
 import core.lib.math.vector2D;
 
