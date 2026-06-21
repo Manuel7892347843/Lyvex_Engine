@@ -35,6 +35,7 @@ public class SceneRenderer {
     private final int viewportHeight;
     private final EditorCamera2D editorCamera = new EditorCamera2D();
     private boolean useSceneCamera = false;
+    private boolean runtimeMode = false;
     private int targetDisplay = 1;
     private int shaderProgram;
     private int vao;
@@ -63,6 +64,10 @@ public class SceneRenderer {
 
     public void setUseSceneCamera(boolean use) {
         this.useSceneCamera = use;
+    }
+
+    public void setRuntimeMode(boolean runtimeMode) {
+        this.runtimeMode = runtimeMode;
     }
 
     public void setTargetDisplay(int targetDisplay) {
@@ -214,11 +219,25 @@ public class SceneRenderer {
 
         EditorContext context = EditorContext.getInstance();
 
-        float viewportScreenX = useSceneCamera ? context.getGameViewportX() : context.getSceneViewportX();
-        float viewportScreenY = useSceneCamera ? context.getGameViewportY() : context.getSceneViewportY();
-        float viewportScreenWidth = useSceneCamera ? context.getGameViewportWidth() : context.getSceneViewportWidth();
-        float viewportScreenHeight = useSceneCamera ? context.getGameViewportHeight() : context.getSceneViewportHeight();
-        boolean viewportHovered = useSceneCamera ? context.isGameHovered() : context.isSceneHovered();
+        float viewportScreenX;
+        float viewportScreenY;
+        float viewportScreenWidth;
+        float viewportScreenHeight;
+        boolean viewportHovered;
+
+        if (runtimeMode) {
+            viewportScreenX = 0.0f;
+            viewportScreenY = 0.0f;
+            viewportScreenWidth = viewportWidth;
+            viewportScreenHeight = viewportHeight;
+            viewportHovered = true;
+        } else {
+            viewportScreenX = useSceneCamera ? context.getGameViewportX() : context.getSceneViewportX();
+            viewportScreenY = useSceneCamera ? context.getGameViewportY() : context.getSceneViewportY();
+            viewportScreenWidth = useSceneCamera ? context.getGameViewportWidth() : context.getSceneViewportWidth();
+            viewportScreenHeight = useSceneCamera ? context.getGameViewportHeight() : context.getSceneViewportHeight();
+            viewportHovered = useSceneCamera ? context.isGameHovered() : context.isSceneHovered();
+        }
 
         float mouseX = InputManager.getMouseX();
         float mouseY = InputManager.getMouseY();

@@ -3,8 +3,7 @@ package core;
 import static org.lwjgl.glfw.GLFW.*;
 
 import com.google.gson.Gson;
-import core.component.Component;
-import core.gameobject.GameObject;
+import core.audio.AudioManager;
 import core.input.InputManager;
 import core.lib.SceneManager;
 import core.lib.Timer;
@@ -12,6 +11,7 @@ import core.physics.PhysicsWorld2D;
 import core.render.FrameBuffer;
 import core.render.GameFrameBuffer;
 import core.render.SceneRenderer;
+import core.runtime.SceneRuntime;
 import core.scene.Scene;
 import core.scene.SceneSerializer;
 import core.scriptutil.ScriptAutoRefreshWatcher;
@@ -20,7 +20,6 @@ import org.lwjgl.opengl.GL;
 import ui.EditorContext;
 import ui.EditorUI;
 import ui.ImGuiLayer;
-import core.audio.AudioManager;
 
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
@@ -41,8 +40,11 @@ public class Engine {
 
     private static boolean isInPlayMode = false;
     private boolean isInitialized = false;
+
     private Scene editorScene;
+    private Scene playModeStartScene;
     private Scene runtimeScene;
+    private SceneRuntime sceneRuntime;
 
     private static float deltaTime = 0.0f;
     private static double lastFrameTime = 0.0;
@@ -107,6 +109,8 @@ public class Engine {
             if (!isInPlayMode) {
                 editorScene = newScene;
                 currentScene = newScene;
+                runtimeScene = null;
+                sceneRuntime = null;
 
                 if (sceneRenderer != null && newScene != null) {
                     sceneRenderer.setScene(newScene);
@@ -120,15 +124,18 @@ public class Engine {
         scriptAutoRefreshWatcher.start();
 
         loadSceneFromProjectFileOrDefault();
+
         editorScene = currentScene;
         editorUI.getContext().setCurrentScene(currentScene);
         sceneRenderer.setScene(currentScene);
+
+        lastFrameTime = glfwGetTime();
     }
 
     private void loop() {
         while (!glfwWindowShouldClose(window)) {
             double currentTime = glfwGetTime();
-            deltaTime = (float)(currentTime - lastFrameTime);
+            deltaTime = (float) (currentTime - lastFrameTime);
             lastFrameTime = currentTime;
 
             accumulator += deltaTime;
@@ -147,15 +154,15 @@ public class Engine {
                 exitPlayMode();
             }
 
-            if (isInPlayMode) {
+            if (isInPlayMode && sceneRuntime != null) {
                 while (accumulator >= FIXED_TIMESTEP) {
-                    fixedUpdateScene();
+                    sceneRuntime.fixedUpdate();
                     PhysicsWorld2D.getInstance().step(FIXED_TIMESTEP);
                     accumulator -= FIXED_TIMESTEP;
                 }
 
-                updateScene();
-                lateUpdateScene();
+                sceneRuntime.update();
+                sceneRuntime.lateUpdate();
             }
 
             if (isInPlayMode) {
@@ -189,18 +196,13 @@ public class Engine {
         }
     }
 
-    private void start(){
-        for (GameObject rootObject : currentScene.getRootObjects()) {
-            rootObject.getComponents().forEach(Component::start);
-        }
-    }
-
     private void enterPlayMode() {
         if (currentScene == null) {
             isInPlayMode = false;
             return;
         }
 
+        playModeStartScene = currentScene;  // SALVA la scena di partenza
         editorScene = currentScene;
         runtimeScene = SceneSerializer.clone(editorScene);
 
@@ -210,162 +212,40 @@ public class Engine {
         }
 
         currentScene = runtimeScene;
+
         editorUI.getContext().setCurrentScene(runtimeScene);
         sceneRenderer.setScene(runtimeScene);
 
         accumulator = 0.0f;
 
-        awakeScene();
-        startScene();
-        registerAllColliders();
+        sceneRuntime = new SceneRuntime(runtimeScene);
+        sceneRuntime.registerAllColliders();
+        sceneRuntime.awake();
+        sceneRuntime.start();
 
         isInitialized = true;
         editorUI.setShowGameView(true);
     }
 
     private void exitPlayMode() {
-        destroyScene();
+        if (sceneRuntime != null) {
+            sceneRuntime.destroy();
+            sceneRuntime = null;
+        }
 
         PhysicsWorld2D.getInstance().clearColliders();
 
         runtimeScene = null;
-        currentScene = editorScene;
 
-        editorUI.getContext().setCurrentScene(editorScene);
-        sceneRenderer.setScene(editorScene);
+        currentScene = playModeStartScene != null ? playModeStartScene : editorScene;
+        playModeStartScene = null;
+
+        editorUI.getContext().setCurrentScene(currentScene);
+        sceneRenderer.setScene(currentScene);
 
         isInitialized = false;
         accumulator = 0.0f;
         editorUI.setShowGameView(false);
-    }
-
-    private void awakeScene() {
-        for (GameObject rootObject : currentScene.getRootObjects()) {
-            awakeGameObjectRecursive(rootObject);
-        }
-    }
-
-    private void awakeGameObjectRecursive(GameObject gameObject) {
-        for (Component component : gameObject.getComponents()) {
-            if (!component.isAwoken()) {
-                component.awake();
-                component.setAwoken(true);
-            }
-        }
-        for (GameObject child : gameObject.getChildren()) {
-            awakeGameObjectRecursive(child);
-        }
-    }
-
-    private void startScene() {
-        for (GameObject rootObject : currentScene.getRootObjects()) {
-            startGameObjectRecursive(rootObject);
-        }
-    }
-
-    private void startGameObjectRecursive(GameObject gameObject) {
-        for (Component component : gameObject.getComponents()) {
-            if (component.isEnabled() && !component.isStarted()) {
-                component.start();
-                component.setStarted(true);
-            }
-        }
-        for (GameObject child : gameObject.getChildren()) {
-            startGameObjectRecursive(child);
-        }
-    }
-
-    private void fixedUpdateScene() {
-        for (GameObject rootObject : currentScene.getRootObjects()) {
-            fixedUpdateGameObjectRecursive(rootObject);
-        }
-    }
-
-    private void fixedUpdateGameObjectRecursive(GameObject gameObject) {
-        for (Component component : gameObject.getComponents()) {
-            if (component.isEnabled()) {
-                component.fixedUpdate();
-            }
-        }
-        for (GameObject child : gameObject.getChildren()) {
-            fixedUpdateGameObjectRecursive(child);
-        }
-    }
-
-    private void updateScene() {
-        for (GameObject rootObject : currentScene.getRootObjects()) {
-            updateGameObjectRecursive(rootObject);
-        }
-    }
-
-    private void updateGameObjectRecursive(GameObject gameObject) {
-        for (Component component : gameObject.getComponents()) {
-            if (component.isEnabled()) {
-                component.update();
-            }
-        }
-        for (GameObject child : gameObject.getChildren()) {
-            updateGameObjectRecursive(child);
-        }
-    }
-
-    private void lateUpdateScene() {
-        for (GameObject rootObject : currentScene.getRootObjects()) {
-            lateUpdateGameObjectRecursive(rootObject);
-        }
-    }
-
-    private void lateUpdateGameObjectRecursive(GameObject gameObject) {
-        for (Component component : gameObject.getComponents()) {
-            if (component.isEnabled()) {
-                component.lateUpdate();
-            }
-        }
-        for (GameObject child : gameObject.getChildren()) {
-            lateUpdateGameObjectRecursive(child);
-        }
-    }
-
-    private void destroyScene() {
-        if (currentScene == null) {
-            return;
-        }
-
-        PhysicsWorld2D.getInstance().clearColliders();
-
-        for (GameObject rootObject : currentScene.getRootObjects()) {
-            destroyGameObjectRecursive(rootObject);
-        }
-    }
-
-    private void destroyGameObjectRecursive(GameObject gameObject) {
-        for (Component component : gameObject.getComponents()) {
-            component.onDestroy();
-            component.setAwoken(false);
-            component.setStarted(false);
-        }
-
-        for (GameObject child : gameObject.getChildren()) {
-            destroyGameObjectRecursive(child);
-        }
-    }
-
-    private void registerAllColliders() {
-        PhysicsWorld2D.getInstance().clearColliders();
-        for (GameObject rootObject : currentScene.getRootObjects()) {
-            registerCollidersRecursive(rootObject);
-        }
-    }
-
-    private void registerCollidersRecursive(GameObject gameObject) {
-        for (Component component : gameObject.getComponents()) {
-            if (component instanceof core.physics.Collider2D) {
-                PhysicsWorld2D.getInstance().registerCollider((core.physics.Collider2D) component);
-            }
-        }
-        for (GameObject child : gameObject.getChildren()) {
-            registerCollidersRecursive(child);
-        }
     }
 
     public void startPlayMode() {
@@ -401,6 +281,7 @@ public class Engine {
             currentScene = SceneSerializer.load(scenePath);
             editorScene = currentScene;
             runtimeScene = null;
+            sceneRuntime = null;
             currentScenePath = scenePath;
 
             if (editorUI != null) {
@@ -556,6 +437,7 @@ public class Engine {
 
         SceneManager manager = ProjectSettings.getSceneManager();
         boolean found = false;
+
         for (int i = 0; i < manager.getSceneEntries().size(); i++) {
             if (manager.getSceneEntries().get(i).fileName.equals(fileName)) {
                 manager.loadScene(i);
@@ -581,12 +463,12 @@ public class Engine {
         int result = chooser.showOpenDialog(null);
         if (result != JFileChooser.APPROVE_OPTION) {
             initializeProjectSelection();
+            return;
         }
 
         Path selectedPath = chooser.getSelectedFile().toPath();
 
         if (!ProjectManager.isValidProject(selectedPath)) {
-
             JOptionPane.showMessageDialog(
                     null,
                     "The selected folder is not a valid Lyvex project.",
@@ -678,6 +560,36 @@ public class Engine {
 
     public void onSceneChanged(Scene scene) {
         if (isInPlayMode) {
+            if (sceneRuntime != null) {
+                sceneRuntime.destroy();
+                sceneRuntime = null;
+            }
+
+            PhysicsWorld2D.getInstance().clearColliders();
+
+            runtimeScene = SceneSerializer.clone(scene);
+            if (runtimeScene == null) {
+                isInPlayMode = false;
+                isInitialized = false;
+                editorUI.setShowGameView(false);
+                return;
+            }
+
+            currentScene = runtimeScene;
+
+            if (sceneRenderer != null) {
+                sceneRenderer.setScene(runtimeScene);
+            }
+            if (editorUI != null) {
+                editorUI.getContext().setCurrentScene(runtimeScene);
+            }
+
+            sceneRuntime = new SceneRuntime(runtimeScene);
+            sceneRuntime.registerAllColliders();
+            sceneRuntime.awake();
+            sceneRuntime.start();
+
+            accumulator = 0.0f;
             return;
         }
 
@@ -687,27 +599,36 @@ public class Engine {
         if (editorUI != null) {
             editorUI.getContext().setCurrentScene(scene);
         }
-
         currentScene = scene;
         editorScene = scene;
         runtimeScene = null;
+        sceneRuntime = null;
     }
 
     private void cleanup() {
+        if (sceneRuntime != null) {
+            sceneRuntime.destroy();
+            sceneRuntime = null;
+        }
+
         if (scriptAutoRefreshWatcher != null) {
             scriptAutoRefreshWatcher.stop();
+            scriptAutoRefreshWatcher = null;
         }
 
         if (sceneRenderer != null) {
             sceneRenderer.dispose();
+            sceneRenderer = null;
         }
 
         if (sceneFrameBuffer != null) {
             sceneFrameBuffer.dispose();
+            sceneFrameBuffer = null;
         }
 
         if (gameFrameBuffer != null) {
             gameFrameBuffer.dispose();
+            gameFrameBuffer = null;
         }
 
         InputManager.dispose();
@@ -716,10 +637,12 @@ public class Engine {
 
         if (imguiLayer != null) {
             imguiLayer.dispose();
+            imguiLayer = null;
         }
 
         if (window != 0) {
             glfwDestroyWindow(window);
+            window = 0;
         }
 
         glfwTerminate();

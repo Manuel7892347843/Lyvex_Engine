@@ -30,6 +30,12 @@ public class ProjectSettings {
         public String startupScene = "";
         public String codeEditorPath = "";
         public int targetFPS = 60;
+
+        public String gameName = "Lyvex Game";
+        public int windowWidth = 1280;
+        public int windowHeight = 720;
+        public boolean fullscreen = false;
+        public boolean vsync = true;
     }
 
     public static SortingLayerManager getSortingLayerManager() {
@@ -77,6 +83,12 @@ public class ProjectSettings {
         data.codeEditorPath = codeEditorPath;
 
         data.physicsLayers = getPhysicsLayerManager().getLayers();
+
+        if (data.gameName == null || data.gameName.isBlank()) {
+            data.gameName = data.projectName == null || data.projectName.isBlank()
+                    ? "Lyvex Game"
+                    : data.projectName;
+        }
 
         try {
             Files.createDirectories(projectFile.getParent());

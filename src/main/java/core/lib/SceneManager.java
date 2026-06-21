@@ -107,14 +107,6 @@ public class SceneManager {
         }
     }
 
-    private void notifySceneChanged(Scene scene) {
-        Engine engine = EditorContext.getInstance().getEngine();
-        if (engine != null) {
-            engine.onSceneChanged(scene);
-            EditorContext.getInstance().setSelectedGameObject(null);
-        }
-    }
-
     public void loadSceneByName(String name) {
         for (int i = 0; i < sceneEntries.size(); i++) {
             if (sceneEntries.get(i).name.equals(name)) {
@@ -124,17 +116,19 @@ public class SceneManager {
         }
     }
 
+    private void notifySceneChanged(Scene scene) {
+        Engine engine = EditorContext.getInstance().getEngine();
+        if (engine != null) {
+            engine.onSceneChanged(scene);
+        }
+    }
+
     public Scene getCurrentScene() {
         return EditorContext.getInstance().getCurrentScene();
     }
 
     public int getActiveSceneIndex() {
         return activeSceneIndex;
-    }
-
-    public void saveToProject() {
-        // Salva la lista scene nel project settings JSON
-        // Implementato in ProjectSettings
     }
 
     public void loadFromProject(List<SceneEntry> entries) {
