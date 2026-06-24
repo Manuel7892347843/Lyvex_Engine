@@ -9,6 +9,9 @@ import java.util.List;
 public class Scene {
     private String name;
     private final List<GameObject> rootObjects = new ArrayList<>();
+    private final List<GameObject> pendingAdd = new ArrayList<>();
+    private final List<GameObject> pendingRemove = new ArrayList<>();
+    private boolean isIterating = false;
 
     public Scene() {
         this("Untitled Scene");
@@ -37,12 +40,21 @@ public class Scene {
     }
 
     public void addRootObject(GameObject object) {
-        if (object != null && !rootObjects.contains(object)) {
+        if (isIterating) {
+            pendingAdd.add(object);
+        } else {
             rootObjects.add(object);
         }
     }
 
     public void removeRootObject(GameObject object) {
         rootObjects.remove(object);
+    }
+
+    public void flushPending() {
+        rootObjects.addAll(pendingAdd);
+        rootObjects.removeAll(pendingRemove);
+        pendingAdd.clear();
+        pendingRemove.clear();
     }
 }
